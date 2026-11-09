@@ -1,4 +1,4 @@
-import { t } from './i18n.mjs';
+import { locale, t } from './i18n.mjs';
 
 let activeControl = null;
 let nextSelectId = 0;
@@ -71,7 +71,8 @@ export function enhanceSelect(select, { filterable = true } = {}) {
     activeValue = null,
     open = false,
     composing = false,
-    lastQuery = '';
+    lastQuery = '',
+    lastSignature = '';
 
   function position() {
     if (!open) return;
@@ -113,28 +114,39 @@ export function enhanceSelect(select, { filterable = true } = {}) {
       scrollTop = queryChanged ? 0 : options.scrollTop;
     lastQuery = query;
     filtered = items.filter(item => normalized(item.search).includes(query));
-    options.replaceChildren(
-      ...filtered.map(item => {
-        const option = node('div', 'select-option');
-        option.role = 'option';
-        option.id = select.id + '-option-' + item.index;
-        option.dataset.value = item.value;
-        option.setAttribute('aria-selected', String(item.value === select.value));
-        option.setAttribute('aria-disabled', String(item.disabled));
-        const copy = node('span', 'select-option-copy');
-        copy.append(node('strong', '', item.label));
-        if (item.description) copy.append(node('small', '', item.description));
-        const check = icon('check-lg', 'select-check');
-        check.hidden = item.value !== select.value;
-        option.append(copy, check);
-        option.addEventListener('pointermove', () => {
-          if (!item.disabled) highlight(item);
-        });
-        option.addEventListener('pointerdown', event => event.preventDefault());
-        option.addEventListener('click', () => choose(item));
-        return option;
-      }),
-    );
+    // 快照每秒刷新会调用 refresh() → render()；选项没变时不重建节点，否则点击途中的
+    // 选项会被替换掉（浏览器里表现为"点了没反应"，Playwright 里表现为点击超时）。
+    const signature = JSON.stringify([
+      query,
+      locale(),
+      select.value,
+      filtered.map(item => [item.index, item.value, item.label, item.description, item.disabled]),
+    ]);
+    if (signature !== lastSignature) {
+      lastSignature = signature;
+      options.replaceChildren(
+        ...filtered.map(item => {
+          const option = node('div', 'select-option');
+          option.role = 'option';
+          option.id = select.id + '-option-' + item.index;
+          option.dataset.value = item.value;
+          option.setAttribute('aria-selected', String(item.value === select.value));
+          option.setAttribute('aria-disabled', String(item.disabled));
+          const copy = node('span', 'select-option-copy');
+          copy.append(node('strong', '', item.label));
+          if (item.description) copy.append(node('small', '', item.description));
+          const check = icon('check-lg', 'select-check');
+          check.hidden = item.value !== select.value;
+          option.append(copy, check);
+          option.addEventListener('pointermove', () => {
+            if (!item.disabled) highlight(item);
+          });
+          option.addEventListener('pointerdown', event => event.preventDefault());
+          option.addEventListener('click', () => choose(item));
+          return option;
+        }),
+      );
+    }
     empty.hidden = filtered.length > 0;
     clear.setAttribute('aria-hidden', String(!input.value));
     clear.tabIndex = input.value ? 0 : -1;
