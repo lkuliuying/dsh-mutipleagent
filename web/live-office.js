@@ -3,6 +3,7 @@ import { LiveSource } from './live-source.mjs';
 import { applyOfficeBrand, officePage } from './base-url.mjs';
 import { directoryGroups, directorySessions, sessionLabel } from './session-selection.mjs';
 import { enhanceSelect, bindSearchNavigation, closeOfficeControls } from './office-controls.js';
+import { createNotificationState } from './notifications.mjs';
 
 export function startLiveOffice() {
   const $ = id => document.getElementById(id);
@@ -16,6 +17,8 @@ export function startLiveOffice() {
   const types = { assign: '分配任务', message: '追加消息', wait: '等待汇报', report: '提交汇报', complete: '任务完成',
     tool: '工具活动', progress: '进展消息', task: '任务原文', approval: '等待确认', close: '关闭 Agent',
     error: '执行出错', interrupted: '任务中断', closed: '关闭 Agent' };
+  const notifyTypes = new Set(['assign', 'message', 'report', 'complete', 'approval', 'error', 'interrupted']);
+  const notifyEvents = () => data.events.filter(event => notifyTypes.has(event.type));
   const source = new LiveSource(new URLSearchParams(location.search).get('rootId'));
   const host = () => source.kind === 'harness' ? 'DeepSeek Harness' : 'Codex';
   const empty = { id: '', icon: 'diagram-3-fill', name: '未选择 Agent', title: '等待会话日志', code: '—',
@@ -24,6 +27,10 @@ export function startLiveOffice() {
   let seen = new Set(), lastRoot = null, pinSignature = '', queueSignature = '', rootSignature = '', eventSignature = '';
   let toastTimer, recordToken = 0, sceneFailed = false;
   const directoryPicker = enhanceSelect($('workspace-directory')), scenarioPicker = enhanceSelect($('scenario'));
+  const modePicker = enhanceSelect($('mode-select'), { filterable: false });
+  const modeSelect = $('mode-select'); modeSelect.value = 'live'; modePicker.refresh();
+  const notifications = createNotificationState({ mode: 'live', button: $('notifications-button'),
+    dot: $('notification-dot'), panel: $('notifications'), getEvents: notifyEvents });
   let teamDirectoryPicker = null;
   const searchNavigation = bindSearchNavigation({ input: $('task-search'), form: $('search-form'),
     results: $('search-results'), list: $('search-result-list'), status: $('search-status'), clear: $('clear-search'),
@@ -34,7 +41,7 @@ export function startLiveOffice() {
   const visibleRoots = () => source.kind === 'harness' ? directorySessions(data.roots, source.directoryKey) : data.roots;
   const name = id => data.agents.find(s => s.id === id)?.name || 'Agent ' + (id || '').slice(-8);
   const status = s => labels[s.status] || '未知';
-  const matches = s => !query || [s.name, s.task, s.role, s.file, s.id, s.zone].join(' ').toLowerCase().includes(query.toLowerCase());
+  const matches = s => !query || [s.name, s.task, s.role, s.file, s.id, s.zone, s.title].join(' ').toLowerCase().includes(query.toLowerCase());
   const clock = seconds => {
     const value = Math.max(0, Math.floor(seconds));
     return (value >= 3600 ? String(Math.floor(value / 3600)).padStart(2, '0') + ':' : '') +
@@ -117,7 +124,7 @@ export function startLiveOffice() {
     $('detail-parent').textContent = s.parentId ? name(s.parentId) + ' → ' + s.name : '统筹 ' + data.assigned + ' 位本轮成员';
     $('detail-name').textContent = s.name; $('detail-stage').textContent = data.complete ? '协作已完成' : stages[data.stage];
     $('view-report').replaceChildren(document.createTextNode(hasReport ? '查看汇报全文' : '查看任务详情'), icon('arrow-right'));
-    $('view-report').disabled = !s.id; $('view-task').hidden = !hasReport;
+    $('view-report').disabled = !s.id; $('view-task').hidden = !hasReport; $('view-screen').hidden = !scene?.openScreenFor || !s.id;
     $('current-task-code').textContent = s.code; $('current-task-agent').textContent = s.name + ' · ' + s.zone.split(' · ')[0];
     $('current-task-description').textContent = s.title; $('current-task-icon').src = './demo-icons/' + s.icon + '.svg';
   }
@@ -135,33 +142,90 @@ export function startLiveOffice() {
     }));
     if (!list.length) $('task-queue').append(node('div', 'queue-empty', '没有匹配的任务'));
   }
+  function clearQuery() {
+    query = ''; $('task-search').value = ''; renderQueue();
+  }
   function search() {
     const results = $('search-result-list'); results.replaceChildren();
-    for (const s of query ? agents().filter(matches) : []) {
-      const button = node('button', 'search-result'), text = node('span');
-      button.type = 'button'; button.dataset.value = s.id;
-      text.append(node('strong', '', s.name + ' · ' + s.title), node('small', '', s.file)); button.append(icon(s.icon), text);
-      button.onclick = () => { select(s.id); $('task-search').focus(); searchNavigation.close(); }; results.append(button);
+    if (query) {
+      const needle = query.toLowerCase();
+      const sessionHits = source.kind === 'harness'
+        ? (data.roots || []).filter(root => [root.title, root.cwd, root.id].join(' ').toLowerCase().includes(needle))
+        : [];
+      const agentHits = agents().filter(matches);
+      const eventHits = (data.events || []).filter(event =>
+        [event.type, types[event.type], event.preview].join(' ').toLowerCase().includes(needle));
+      const shown = Math.min(sessionHits.length, 8) + Math.min(agentHits.length, 8) + Math.min(eventHits.length, 5);
+      const total = sessionHits.length + agentHits.length + eventHits.length;
+      if (total > shown) {
+        results.append(node('p', 'search-note', '共 ' + total + ' 项匹配，显示前 ' + shown + ' 项；输入更精确的关键词可缩小范围。'));
+      }
+      for (const root of sessionHits.slice(0, 8)) {
+        const button = node('button', 'search-result'), text = node('span');
+        const at = Number.isFinite(root.createdAt) ? root.createdAt : root.at, date = new Date(at);
+        button.type = 'button'; button.dataset.value = 'session:' + root.id;
+        text.append(node('strong', '', root.title?.trim() || '未命名会话'),
+          node('small', '', '会话 · ' + (root.cwd || '未记录工作目录') + ' · ' +
+            (Number.isNaN(date.getTime()) ? '时间未记录' : date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })) +
+            ' · ' + String(root.id).slice(-8)));
+        button.append(icon('diagram-3-fill'), text);
+        button.onclick = () => {
+          clearQuery(); searchNavigation.close();
+          void source.openSession(root.id).then(ok => { if (ok === false) toast('无法打开该会话'); });
+        };
+        results.append(button);
+      }
+      for (const s of agentHits.slice(0, 8)) {
+        const button = node('button', 'search-result'), text = node('span');
+        button.type = 'button'; button.dataset.value = 'agent:' + s.id;
+        text.append(node('strong', '', s.name + ' · ' + s.title), node('small', '', 'Agent · ' + (s.file || s.role || '日志未记录')));
+        button.append(icon(s.icon), text);
+        button.onclick = () => { clearQuery(); select(s.id); searchNavigation.close(); }; results.append(button);
+      }
+      for (const event of eventHits.slice(0, 5)) {
+        const button = node('button', 'search-result'), text = node('span');
+        button.type = 'button'; button.dataset.value = 'event:' + event.id;
+        text.append(node('strong', '', (types[event.type] || event.type) + (event.preview ? ' · ' + event.preview : '')),
+          node('small', '', '事件 · ' + name(event.sessionId) + ' · ' + new Date(event.at).toLocaleTimeString('zh-CN', { hour12: false })));
+        button.append(icon('bell'), text);
+        button.onclick = () => {
+          clearQuery(); searchNavigation.close();
+          const id = ['assign', 'message'].includes(event.type) ? event.targetId || event.sessionId : event.sessionId;
+          const agent = data.agents.find(s => s.id === id);
+          if (agent) { if (agent.historical) history = true; select(id); }
+          if (event.hasText) record(name(event.sessionId) + ' · ' + (types[event.type] || event.type), event.sessionId, event.id);
+        };
+        results.append(button);
+      }
     }
     searchNavigation.refresh();
   }
   function renderEvents() {
-    const events = data.events.slice(-40).reverse(), signature = JSON.stringify(events);
+    const events = notifyEvents().slice(-12).reverse(), signature = JSON.stringify(events);
     if (signature === eventSignature) return;
     eventSignature = signature;
     $('notification-list').replaceChildren(...events.map(event => {
       const button = node('button', 'notification-item');
-      button.append(node('span', '', name(event.sessionId) + ' · ' + (types[event.type] || event.type)),
-        node('span', 'event-preview', event.preview || (event.targetId ? '→ ' + name(event.targetId) : '')),
-        node('small', '', new Date(event.at).toLocaleTimeString('zh-CN', { hour12: false })));
+      const type = ['assign', 'message', 'report'].includes(event.type) ? event.type : 'activity';
+      const badge = node('span', 'notify-type');
+      badge.append(icon(type === 'assign' ? 'diagram-3-fill' : type === 'report' ? 'check-lg' : type === 'message' ? 'chat-left-text-fill' : 'cpu-fill'));
+      const copy = node('span', 'notify-copy');
+      const title = type === 'assign' ? '分配任务' : type === 'report' ? '提交汇报' : type === 'message' ? '追加消息' : (types[event.type] || '协作动态');
+      const route = name(event.sessionId) + (event.targetId && event.targetId !== event.sessionId ? ' → ' + name(event.targetId) : '');
+      copy.append(node('strong', 'notify-title', title),
+        node('small', 'notify-preview', route + (event.preview ? ' · ' + event.preview : '')),
+        node('em', 'notify-time', new Date(event.at).toLocaleTimeString('zh-CN', { hour12: false })));
+      button.append(badge, copy);
       button.onclick = () => {
         const id = ['assign', 'message'].includes(event.type) ? event.targetId || event.sessionId : event.sessionId;
         const agent = data.agents.find(s => s.id === id);
         if (agent) { if (agent.historical) history = true; select(id); }
+        notifications.markRead(); notifications.close();
         if (event.hasText) record(name(event.sessionId) + ' · ' + (types[event.type] || event.type), event.sessionId, event.id);
       }; return button;
     }));
     if (!events.length) $('notification-list').append(node('div', 'empty', '等待真实协作事件。'));
+    notifications.update();
   }
   function renderRoots() {
     const signature = JSON.stringify([source.kind, source.directoryKey, data.rootId, data.roots]);
@@ -263,8 +327,10 @@ export function startLiveOffice() {
     $('demo-clock').textContent = data.elapsedKnown ? clock(data.seconds) : '—';
     $('team-count-caption').textContent = '主 Agent + ' + data.assigned + ' 位本轮成员';
     $('assigned-caption').textContent = '包含嵌套协作任务';
-    $('mode-label').textContent = source.connection === 'connected' ? '真实会话' : source.connection === 'connecting' ? '连接中' : '连接中断';
-    $('mode-toggle').classList.toggle('disconnected', source.connection !== 'connected');
+    const liveOption = modeSelect.querySelector('option[value="live"]');
+    liveOption.textContent = source.connection === 'connected' ? '真实会话' : source.connection === 'connecting' ? '连接中' : '连接中断';
+    modeSelect.closest('.mode-field')?.classList.toggle('disconnected', source.connection !== 'connected');
+    modePicker.refresh();
     $('profile-caption').textContent = source.error || (source.kind === 'harness' ? 'Harness 会话 · 只读观察' : '本机日志 · 只读观察'); $('profile-caption').title = source.error || '约每秒更新，不控制 ' + host() + ' 执行';
     $('source-status').hidden = !source.error && !data.warnings.length; $('source-status').textContent = [source.error, ...data.warnings].filter(Boolean).join('；');
     $('play-label').textContent = source.follow ? source.kind === 'harness' ? '跟随本目录新会话' : '跟随新会话' : '固定当前会话'; $('toggle-play').setAttribute('aria-label', $('play-label').textContent);
@@ -299,13 +365,20 @@ export function startLiveOffice() {
   $('detail-activity-label').textContent = '活动 / 模型';
   $('detail-disclaimer').textContent = '只读真实日志 · 在 Codex 中执行任务';
   $('dialog-mode').textContent = 'CODEX OFFICE / LIVE'; $('dialog-caption').textContent = '本机日志原文 · 未调用模型生成摘要';
-  $('mode-toggle').title = '切换到模拟演示'; $('mode-toggle').setAttribute('aria-label', '真实会话，点击切换到模拟演示');
-  $('mode-toggle').onclick = () => { location.href = officePage(false, source.kind); };
+  $('mode-select').setAttribute('aria-label', '选择会话模式');
+  $('mode-select').onchange = event => {
+    if (event.target.value === 'demo') location.href = officePage(false, source.kind);
+    else { event.target.value = 'live'; modePicker.refresh(); }
+  };
   $('restart-demo').title = '重新连接日志流'; $('restart-demo').setAttribute('aria-label', '重新连接日志流');
   $('play-icon').src = './demo-icons/crosshair.svg'; $('toggle-play').title = '是否自动跟随新建主会话；不控制 Codex 执行';
   $('history-toggle').hidden = $('team-picker').hidden = false;
   $('close-details').onclick = () => details(false); $('open-details').onclick = () => details(true);
   $('view-report').onclick = () => showTask(); $('view-task').onclick = () => showTask(true);
+  const screenButton = document.createElement('button');
+  screenButton.id = 'view-screen'; screenButton.type = 'button'; screenButton.className = 'text-button'; screenButton.textContent = '查看屏幕'; screenButton.hidden = true;
+  $('view-task').before(screenButton);
+  screenButton.onclick = () => { const s = selected(); if (s?.id) scene?.openScreenFor?.(s.id); };
   $('current-task-button').onclick = () => { details(true); showTask(); };
   $('close-demo-dialog').onclick = () => { recordToken++; $('demo-dialog').close(); };
   $('demo-dialog').addEventListener('close', () => {
@@ -324,7 +397,8 @@ export function startLiveOffice() {
   $('task-search').oninput = event => { query = event.target.value.trim(); renderQueue(); search(); };
   $('task-search').onfocus = search;
   $('clear-search').onclick = () => { query = ''; $('task-search').value = ''; renderQueue(); search(); $('task-search').focus(); };
-  $('notifications-button').onclick = () => { const show = $('notifications').hidden; $('notifications').hidden = !show; $('notifications-button').setAttribute('aria-expanded', show); };
+  $('notifications-button').onclick = () => notifications.toggle();
+  $('mark-read').onclick = () => { notifications.markRead(); renderEvents(); };
   $('show-team').onclick = $('team-picker').onclick = teamPicker;
   $('dock-toggle').onclick = () => { const expanded = $('workflow-dock').classList.toggle('expanded'); $('dock-toggle').setAttribute('aria-expanded', expanded); };
   for (const button of document.querySelectorAll('.stage')) button.onclick = () => toast('当前记录阶段：' + stages[data.stage] + '；任务由 ' + host() + ' 执行');
@@ -335,7 +409,7 @@ export function startLiveOffice() {
     if (event.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) && !$('demo-dialog').open) { event.preventDefault(); $('task-search').focus(); }
   });
   document.addEventListener('click', event => {
-    if (!event.target.closest('#notifications') && !event.target.closest('#notifications-button')) { $('notifications').hidden = true; $('notifications-button').setAttribute('aria-expanded', 'false'); }
+    if (!event.target.closest('#notifications') && !event.target.closest('#notifications-button')) notifications.close();
   });
   document.addEventListener('visibilitychange', () => { if (scene) scene.visible = !document.hidden && !scene.loadError; });
   details(innerWidth > 1050 && innerHeight > 820); render({ baseline: true });

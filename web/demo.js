@@ -3,6 +3,7 @@ import { DemoPlayer, DURATION } from './demo-state.mjs';
 import { startLiveOffice } from './live-office.js';
 import { applyOfficeBrand, officePage, officeSource } from './base-url.mjs';
 import { enhanceSelect, bindSearchNavigation, closeOfficeControls } from './office-controls.js';
+import { createNotificationState } from './notifications.mjs';
 
 if (new URLSearchParams(location.search).get('mode') === 'live') startLiveOffice();
 else startDemo();
@@ -31,6 +32,12 @@ let seen = new Set(snapshot.events.map((e) => e.id)), detailsOpen = innerWidth >
 let lastSeconds = snapshot.seconds, lastScenario = snapshot.scenario, lastTime = performance.now();
 let dialogSignature = '', queueSignature = '';
 const scenarioPicker = enhanceSelect($('scenario'));
+const modePicker = enhanceSelect($('mode-select'), { filterable: false });
+const modeSelect = $('mode-select');
+modeSelect.value = 'demo';
+modePicker.refresh();
+const notifications = createNotificationState({ mode: 'demo', button: $('notifications-button'),
+  dot: $('notification-dot'), panel: $('notifications'), getEvents: () => snapshot.events });
 const searchNavigation = bindSearchNavigation({ input: $('task-search'), form: $('search-form'),
   results: $('search-results'), list: $('search-result-list'), status: $('search-status'), clear: $('clear-search'),
   onClear: () => $('clear-search').click(), onOpen: renderSearch });
@@ -146,14 +153,22 @@ function renderSearch() {
 
 function renderNotifications() {
   const list = $('notification-list'); list.replaceChildren();
-  const events = snapshot.events.slice(-5).reverse();
+  const events = snapshot.events.slice(-6).reverse();
   for (const e of events) {
-    const item = element('div', 'notification-item',
-      e.type === 'assign' ? '主 Agent 分配任务给 ' + names[e.targetId] : names[e.sessionId] + ' 提交了' + (e.sessionId === 'main' ? '最终总结' : '任务汇报'));
-    item.append(element('small', '', '演示时间 ' + clock(e.at)));
+    const agent = snapshot.agents.find((s) => s.id === (e.targetId || e.sessionId));
+    const item = element('button', 'notification-item'); item.type = 'button';
+    const badge = element('span', 'notify-type'); badge.append(icon(e.type === 'assign' ? 'diagram-3-fill' : e.type === 'report' ? 'check-lg' : 'chat-left-text-fill'));
+    const copy = element('span', 'notify-copy');
+    const title = e.type === 'assign' ? '分配任务' : e.type === 'report' ? '提交汇报' : '协作消息';
+    const who = e.type === 'assign' ? '主 Agent → ' : names[e.sessionId] + ' · ';
+    const what = e.type === 'assign' ? (agent?.title || names[e.targetId]) : e.type === 'report' ? '结果已汇总' : (e.preview || '同步进展');
+    copy.append(element('strong', 'notify-title', title), element('small', 'notify-preview', who + what), element('em', 'notify-time', '演示 ' + clock(e.at)));
+    item.append(badge, copy);
+    item.onclick = () => { if (agent) selectAgent(agent.id); notifications.markRead(); notifications.close(); };
     list.append(item);
   }
   if (!events.length) list.append(element('div', 'empty', '演示开始后，协作事件将在这里出现。'));
+  notifications.update();
 }
 
 function showText(title, text, iconName = selected().icon) {
@@ -245,7 +260,10 @@ $('copy-demo-report').onclick = async () => {
   catch { toast('复制未完成，请手动选择正文。'); }
 };
 $('toggle-play').onclick = () => player.play();
-$('mode-toggle').onclick = () => { location.href = officePage(true, sourceKind); };
+$('mode-select').onchange = (e) => {
+  if (e.target.value === 'live') location.href = officePage(true, sourceKind);
+  else { e.target.value = 'demo'; modePicker.refresh(); }
+};
 $('restart-demo').onclick = () => { player.restart(); toast('演示已从任务分配重新开始'); };
 $('reset-demo-camera').onclick = () => scene?.resetCamera();
 $('scenario').onchange = (e) => {
@@ -254,11 +272,8 @@ $('scenario').onchange = (e) => {
 $('task-search').oninput = (e) => { query = e.target.value.trim(); queueSignature = ''; renderQueue(); renderSearch(); };
 $('task-search').onfocus = () => renderSearch();
 $('clear-search').onclick = () => { query = ''; $('task-search').value = ''; renderQueue(); renderSearch(); $('task-search').focus(); };
-$('notifications-button').onclick = () => {
-  const show = $('notifications').hidden;
-  $('notifications').hidden = !show;
-  $('notifications-button').setAttribute('aria-expanded', show);
-};
+$('notifications-button').onclick = () => notifications.toggle();
+$('mark-read').onclick = () => { notifications.markRead(); renderNotifications(); };
 $('show-team').onclick = () => {
   dialogSignature = '';
   showText('团队任务 · ' + snapshot.config.title, snapshot.agents.map((s) => s.name + '  /  ' + s.zone + '\n' + s.task + '\n状态：' + statusLabel(s) + ' · ' + s.progress + '%').join('\n\n'), 'people-fill');
@@ -276,14 +291,12 @@ $('demo-reduced').checked = matchMedia('(prefers-reduced-motion: reduce)').match
 document.body.dataset.reducedMotion = String($('demo-reduced').checked);
 $('demo-reduced').onchange = (e) => { document.body.dataset.reducedMotion = String(e.target.checked); scene?.setReduced(e.target.checked); };
 document.addEventListener('keydown', (e) => {
-  if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) && !$('demo-dialog').open) {
+  if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) && !$('demo-dialog').open && !document.querySelector('.screen-modal')) {
     e.preventDefault(); $('task-search').focus();
   }
 });
 document.addEventListener('click', (e) => {
-  if (!e.target.closest('#notifications') && !e.target.closest('#notifications-button')) {
-    $('notifications').hidden = true; $('notifications-button').setAttribute('aria-expanded', 'false');
-  }
+  if (!e.target.closest('#notifications') && !e.target.closest('#notifications-button')) notifications.close();
 });
 document.addEventListener('visibilitychange', () => { lastTime = performance.now(); if (scene) scene.visible = !document.hidden && !scene.loadError; });
 

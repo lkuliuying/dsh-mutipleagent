@@ -2,7 +2,19 @@
 
 DeepSeek Harness 多 Agent 3D 协作办公室插件。安装后从 Harness 侧栏的「多 Agent 办公室」打开，观察真实主会话、子 Agent、工具活动和完整汇报，沿用本项目已有的 3D 场景与交互。
 
-当前版本为 `v0.1.2`，包名为 `dsh-mutipleagent`，仓库地址为 [lkuliuying/dsh-mutipleagent](https://github.com/lkuliuying/dsh-mutipleagent)。当前兼容目标是 Harness `0.2.2-rc.1`，需要 Node.js `^22.19.0 || >=24.0.0`。
+当前版本为 `v0.1.3`，包名为 `dsh-mutipleagent`，仓库地址为 [lkuliuying/dsh-mutipleagent](https://github.com/lkuliuying/dsh-mutipleagent)。当前兼容目标是 Harness `0.2.2-rc.1`，需要 Node.js `^22.19.0 || >=24.0.0`。
+
+## v0.1.3 更新
+
+- 3D 办公室：角色入座、面向显示器并敲键盘/动鼠标；屏幕显示当前状态与最近事件；主/子 Agent 之间的任务和汇报以“屏幕到屏幕”的光点流线呈现。
+- 点击任意工位显示器可打开屏幕详情：真实 Agent、状态、任务、模型/工具与最近事件；支持 Esc、遮罩和关闭按钮，移动端改为可读文本布局。
+- 顶部「模式」改为下拉选择真实会话/演示会话，与目录、会话下拉同一交互，但不需要搜索。
+- 通知中心重做：红点按已读锚点消除，新增「全部已读」、分类图标与更清晰的三行摘要；窄屏也保留入口。
+- 墙面标识改为「DSH 控制」「Agent 协作」，中文字体自适应，不再裁切。
+- 根会话上限从 60 提升到 500，按创建时间倒序；超过上限会提示总数。
+- 搜索支持跨目录会话标题，选中后自动切换目录并清理查询；修复跨目录打开时的假错误提示、390px 搜索结果被遮挡等问题。
+
+验证：76 项单元测试、25 项浏览器验收、Harness `0.2.2-rc.1` 实际 SDK 的隔离加载检查通过。
 
 ## 安装到 Harness
 
@@ -10,13 +22,13 @@ DeepSeek Harness 多 Agent 3D 协作办公室插件。安装后从 Harness 侧�
 
 完全退出 Harness Desktop，在 PowerShell 运行以下命令，再重新启动 Harness：
 
-    dsh plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.1.2' --ignore-scripts
+    dsh plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.1.3' --ignore-scripts
 
 如果终端没有 `dsh` 命令，可使用 Desktop 随附的 CLI：
 
-    & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.1.2' --ignore-scripts
+    & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.1.3' --ignore-scripts
 
-上述命令既可首次安装，也可将原来固定在 `v0.1` 或 `v0.1.1` 的安装切换到 `v0.1.2`。安装源固定到具体标签，后续升级需改为目标版本的标签；仅重启不会切换版本。
+上述命令既可首次安装，也可将原来固定在 `v0.1`、`v0.1.1` 或 `v0.1.2` 的安装切换到 `v0.1.3`。安装源固定到具体标签，后续升级需改为目标版本的标签；仅重启不会切换版本。
 
 ### 从本地源码打包
 
@@ -29,11 +41,11 @@ DeepSeek Harness 多 Agent 3D 协作办公室插件。安装后从 Harness 侧�
 
 退出 Harness Desktop 后，安装本地包；路径按实际位置调整：
 
-    dsh plugin --profile desktop add "F:\Program\Multiple-Agent\.artifacts\dsh-mutipleagent-0.1.2.tgz"
+    dsh plugin --profile desktop add "F:\Program\Multiple-Agent\.artifacts\dsh-mutipleagent-0.1.3.tgz"
 
 如果终端没有 `dsh` 命令，可使用 Desktop 随附的 CLI，例如 PowerShell：
 
-    & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'F:\Program\Multiple-Agent\.artifacts\dsh-mutipleagent-0.1.2.tgz'
+    & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'F:\Program\Multiple-Agent\.artifacts\dsh-mutipleagent-0.1.3.tgz'
 
 重启 Harness，在侧栏选择「多 Agent 办公室」。不需要单独运行办公室服务，也不需要设置 API Key。插件从 `sessionQuery` 公开接口读取会话，不读取 `.codex`、凭据或私有推理。
 
@@ -94,7 +106,8 @@ http://127.0.0.1:4317
 ## 怎么看
 
 - 左侧选择一个主任务，团队树包含它的子 Agent 和后代；完成的成员仍留在团队中。
-- 拖动旋转办公室，滚轮缩放；点击人物或团队成员查看详情，点击复位按钮恢复全景。
+- 拖动旋转办公室，滚轮缩放；点击人物或团队成员查看详情，点击显示器查看该工位的屏幕详情，点击复位按钮恢复全景。
+- 顶部「模式」下拉切换真实会话与演示会话；铃铛查看协作动态，打开面板后红点自动消除，也可点「全部已读」。
 - 右侧查看任务原文、实际工具活动、可见进展消息和汇报全文；汇报可展开和复制。
 - 底部时间线展示分配、追加指令、等待、汇报、完成和失败。分配用消息流表达；子 Agent 汇报时走向协调区，界面状态立即更新。
 - 上次选择的任务与减少动画偏好保存在当前浏览器。首次读取、刷新、切换任务或重连时不播放历史动画。

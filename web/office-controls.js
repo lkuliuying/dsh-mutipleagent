@@ -16,7 +16,7 @@ const normalized = value => value.trim().toLowerCase().replace(/\\/g, '/');
 
 export function closeOfficeControls() { activeControl?.close(); }
 
-export function enhanceSelect(select) {
+export function enhanceSelect(select, { filterable = true } = {}) {
   if (!select.id) select.id = 'office-select-' + ++nextSelectId;
   const wrapper = node('div', 'office-select');
   const trigger = node('button', 'select-trigger'); trigger.type = 'button';
@@ -37,10 +37,13 @@ export function enhanceSelect(select) {
   filter.append(icon('search'), input, clear);
   const options = node('div', 'select-options'); options.id = select.id + '-options'; options.role = 'listbox';
   const empty = node('p', 'select-empty', '没有匹配的选项'); empty.role = 'status';
-  popover.append(filter, options, empty);
+  if (filterable) popover.append(filter, options, empty);
+  else popover.append(options, empty);
   trigger.setAttribute('aria-haspopup', 'listbox'); trigger.setAttribute('aria-controls', options.id);
-  input.setAttribute('role', 'combobox'); input.setAttribute('aria-autocomplete', 'list');
-  input.setAttribute('aria-controls', options.id);
+  if (filterable) {
+    input.setAttribute('role', 'combobox'); input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-controls', options.id);
+  }
   const controller = new AbortController(), signal = controller.signal;
   let items = [], filtered = [], activeValue = null, open = false, composing = false, lastQuery = '';
 
@@ -51,7 +54,8 @@ export function enhanceSelect(select) {
     const leftEdge = (viewport?.offsetLeft || 0) + 12, topEdge = (viewport?.offsetTop || 0) + 12;
     const rightEdge = leftEdge + (viewport?.width || innerWidth) - 24;
     const bottomEdge = topEdge + (viewport?.height || innerHeight) - 24;
-    const width = Math.min(Math.max(rect.width, 360), rightEdge - leftEdge);
+    const minWidth = Number(select.dataset.popoverMinWidth) || 360;
+    const width = Math.min(Math.max(rect.width, minWidth), rightEdge - leftEdge);
     const below = bottomEdge - rect.bottom - 8, above = rect.top - topEdge - 8;
     const upwards = below < 260 && above > below;
     popover.style.width = width + 'px';
@@ -112,8 +116,10 @@ export function enhanceSelect(select) {
     closeOfficeControls(); activeControl = api; open = true; activeValue = select.value;
     popover.hidden = false;
     if (popover.showPopover) popover.showPopover();
-    trigger.setAttribute('aria-expanded', 'true'); input.setAttribute('aria-expanded', 'true');
-    render(); input.focus(); highlight(filtered.find(item => item.value === activeValue), true);
+    trigger.setAttribute('aria-expanded', 'true'); if (filterable) input.setAttribute('aria-expanded', 'true');
+    render();
+    if (filterable) input.focus(); else trigger.focus();
+    highlight(filtered.find(item => item.value === activeValue), true);
   }
   function choose(item) {
     if (!item || item.disabled || composing) return;
@@ -123,8 +129,11 @@ export function enhanceSelect(select) {
   }
   function refresh() {
     const label = select.getAttribute('aria-label') || '选择选项';
-    input.setAttribute('aria-label', '筛选' + label.replace(/^选择/, ''));
-    options.setAttribute('aria-label', label + '选项'); input.placeholder = '输入关键词筛选…';
+    if (filterable) {
+      input.setAttribute('aria-label', '筛选' + label.replace(/^选择/, ''));
+      input.placeholder = '输入关键词筛选…';
+    }
+    options.setAttribute('aria-label', label + '选项');
     items = [...select.options].map((option, index) => ({ value: option.value,
       label: option.dataset.label || option.textContent, description: option.dataset.description || '',
       search: option.dataset.search || option.textContent, disabled: option.disabled, index }));
@@ -142,7 +151,21 @@ export function enhanceSelect(select) {
   trigger.setAttribute('aria-expanded', 'false'); input.setAttribute('aria-expanded', 'false');
   trigger.addEventListener('click', () => open ? close(true) : show(), { signal });
   trigger.addEventListener('keydown', event => {
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); show(); }
+    if (!open) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); show(); }
+      return;
+    }
+    if (filterable) return;
+    const enabled = filtered.filter(item => !item.disabled);
+    if (!enabled.length) return;
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+      event.preventDefault();
+      const index = enabled.findIndex(item => item.value === activeValue);
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? enabled.length - 1 :
+        (index + (event.key === 'ArrowDown' ? 1 : -1) + enabled.length) % enabled.length;
+      highlight(enabled[next], true);
+    } else if (event.key === 'Enter') { event.preventDefault(); choose(enabled.find(item => item.value === activeValue)); }
+    else if (event.key === 'Escape') { event.preventDefault(); close(true); }
   }, { signal });
   input.addEventListener('compositionstart', () => { composing = true; }, { signal });
   input.addEventListener('compositionend', () => { composing = false; render(); }, { signal });
@@ -185,7 +208,7 @@ export function bindSearchNavigation({ input, form, results, list, status, clear
   const buttons = () => [...list.querySelectorAll('.search-result')];
   input.setAttribute('role', 'combobox'); input.setAttribute('aria-autocomplete', 'list');
   input.setAttribute('aria-controls', list.id); input.setAttribute('aria-expanded', 'false');
-  list.role = 'listbox'; list.setAttribute('aria-label', '匹配的任务与 Agent');
+  list.role = 'listbox'; list.setAttribute('aria-label', '匹配的会话、任务与 Agent');
   function highlight(button, scroll = false) {
     activeId = button?.dataset.value ?? null;
     for (const item of buttons()) {
@@ -206,7 +229,7 @@ export function bindSearchNavigation({ input, form, results, list, status, clear
     for (const [index, button] of items.entries()) {
       button.id = list.id + '-option-' + index; button.role = 'option'; button.tabIndex = -1;
     }
-    status.textContent = hasQuery ? items.length ? '找到 ' + items.length + ' 项匹配结果' : '没有匹配的任务或 Agent' : '';
+    status.textContent = hasQuery ? items.length ? '找到 ' + items.length + ' 项匹配结果' : '没有匹配的会话、任务或 Agent' : '';
     if (!hasQuery) { activeId = null; close(); return; }
     if (activeControl !== api) { closeOfficeControls(); activeControl = api; }
     results.hidden = false; input.setAttribute('aria-expanded', 'true');

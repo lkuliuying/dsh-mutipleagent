@@ -67,6 +67,7 @@ export class Office3D extends window.Office {
   constructor(root, opts) {
     PENDING_SCENE = (opts && opts.scene) || null;
     super(root, opts);
+    if (typeof window !== 'undefined' && window.__DSH_OFFICE_DEBUG) window.__officeScene = this;
     this.sceneDef = PENDING_SCENE;
     this.compact = !!opts?.compact;
     this.canvas.classList.add('office-overlay');
@@ -184,6 +185,159 @@ export class Office3D extends window.Office {
     m.position.set(x + w / 2 - c.x, y0 - box.min.y, y + d / 2 - c.z);
     group.add(m);
     return m;
+  }
+
+  // A monitor face is a plain 4-vertex quad in Kenney's model. Give it a
+  // readable "screen" so desks look occupied instead of showing grey slabs.
+  screenCodeCanvas(seed = 0, width = 512) {
+    const cv = document.createElement('canvas');
+    const scale = width / 512;
+    cv.width = width; cv.height = Math.round(320 * scale);
+    const c = cv.getContext('2d');
+    c.scale(scale, scale);
+    c.fillStyle = '#0a1020'; c.fillRect(0, 0, 512, 320);
+    c.fillStyle = '#141d33'; c.fillRect(0, 0, 512, 34);
+    ['#ff6b6b', '#ffd166', '#5ee0a0'].forEach((col, i) => {
+      c.fillStyle = col; c.beginPath(); c.arc(18 + i * 18, 17, 5, 0, Math.PI * 2); c.fill();
+    });
+    c.fillStyle = '#7c8db5'; c.font = '600 15px monospace';
+    c.fillText(seed % 2 ? 'workspace — collaboration.ts' : 'harness — session.log', 82, 23);
+    c.fillStyle = '#0e1730'; c.fillRect(0, 34, 108, 286);
+    c.fillStyle = '#5d729f'; c.font = '12px monospace';
+    ['src', 'agents', 'office', 'tests'].forEach((label, i) => c.fillText((i ? '  ' : '▾ ') + label, 12, 62 + i * 24));
+    const code = [
+      'import { team } from "@dsh/office";',
+      'const agents = await team.list(session);',
+      'for (const agent of agents) {',
+      '  const task = await agent.assign();',
+      '  await agent.run(task);',
+      '  emit("tool", agent.status);',
+      '}',
+      'const reports = await team.collect();',
+      'if (reports.length === agents.length) {',
+      '  console.log("all reports ready");',
+      '}',
+      'await fs.writeFile("summary.md", reports);',
+      '// live: streaming tool activity',
+      'export { agents, reports };',
+    ];
+    const tokenize = /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\/\/[^\n]*|\b(?:import|from|const|let|await|for|of|if|else|export|return|new|async|function)\b|\b[A-Za-z_$][\w$]*(?=\()|\b\d+\b|\s+|[^\s])/g;
+    let y = 56;
+    code.forEach((line, i) => {
+      c.fillStyle = '#3d4d70'; c.font = '10px monospace';
+      c.fillText(String(i + 1).padStart(3, ' '), 116, y);
+      let x = 148;
+      const tokens = line.match(tokenize) || [];
+      tokens.forEach((token, k) => {
+        c.fillStyle = /^\/\//.test(token) ? '#6a9955'
+          : /^["']/.test(token) ? '#ce9178'
+            : /^\d+$/.test(token) ? '#b5cea8'
+              : /^(?:import|from|const|let|await|for|of|if|else|export|return|new|async|function)$/.test(token) ? '#569cd6'
+                : /^[A-Za-z_$][\w$]*$/.test(token) && tokens[k + 1] === '(' ? '#dcdcaa'
+                  : '#d4d4d4';
+        c.fillText(token, x, y);
+        x += c.measureText(token).width;
+      });
+      y += 16;
+    });
+    c.fillStyle = '#0e1730'; c.fillRect(0, 292, 512, 28);
+    c.fillStyle = '#5ee0a0'; c.font = '12px monospace'; c.fillText('● live', 14, 311);
+    c.fillStyle = '#5d729f'; c.fillText(seed % 2 ? 'collaboration  +3 agents' : 'session stream  +3 agents', 300, 311);
+    return cv;
+  }
+
+  screenCanvas(seed = 0, width = 512, info = null) {
+    if (!info) return this.screenCodeCanvas(seed, width);
+    const cv = document.createElement('canvas');
+    const scale = width / 512;
+    cv.width = width; cv.height = Math.round(320 * scale);
+    const c = cv.getContext('2d');
+    c.scale(scale, scale);
+    c.fillStyle = '#0a1020'; c.fillRect(0, 0, 512, 320);
+    c.fillStyle = '#141d33'; c.fillRect(0, 0, 512, 34);
+    ['#ff6b6b', '#ffd166', '#5ee0a0'].forEach((col, i) => {
+      c.fillStyle = col; c.beginPath(); c.arc(18 + i * 18, 17, 5, 0, Math.PI * 2); c.fill();
+    });
+    const clip = (text, max) => { const s = String(text == null ? '' : text).replace(/\s+/g, ' '); return s.length > max ? s.slice(0, max - 1) + '…' : s; };
+    c.fillStyle = '#7c8db5'; c.font = '600 14px "Cascadia Mono","Consolas",monospace';
+    c.fillText(clip(info.empty ? 'office — idle station' : (info.name || 'agent') + ' — session.log', 34), 82, 23);
+    if (info.empty) {
+      c.fillStyle = '#7c8db5'; c.font = '600 22px "Microsoft YaHei",sans-serif'; c.textAlign = 'center';
+      c.fillText('未分配工位', 256, 146);
+      c.fillStyle = '#5d729f'; c.font = '13px "Microsoft YaHei",sans-serif';
+      c.fillText('等待 Agent 入座', 256, 174);
+      c.textAlign = 'left';
+      c.fillStyle = '#0e1730'; c.fillRect(0, 292, 512, 28);
+      c.fillStyle = '#5d729f'; c.font = '12px monospace'; c.fillText('○ idle', 14, 311);
+      return cv;
+    }
+    const label = (text, x, y) => { c.fillStyle = '#5d729f'; c.font = '11px "Cascadia Mono","Consolas",monospace'; c.fillText(text, x, y); };
+    const value = (text, x, y, color) => { c.fillStyle = color || '#d4d4d4'; c.font = '12px "Cascadia Mono","Consolas","Microsoft YaHei",monospace'; c.fillText(clip(text, 48), x, y); };
+    label('agent', 14, 62); value(info.code || 'AGENT', 92, 62, '#7fd1ff');
+    label('status', 14, 86); value(info.statusText || '状态未知', 92, 86, info.statusColor || '#d4d4d4');
+    label('task', 14, 110);
+    const task = String(info.task || '等待任务');
+    const rows = [];
+    for (let i = 0; i < task.length && rows.length < 3; i += 32) rows.push(task.slice(i, i + 32));
+    c.fillStyle = '#d4d4d4'; c.font = '12px "Microsoft YaHei",sans-serif';
+    rows.forEach((row, i) => c.fillText(row, 92, 110 + i * 17));
+    const baseY = 110 + Math.max(1, rows.length) * 17 + 8;
+    label('context', 14, baseY); value(info.context || '未记录', 92, baseY, '#b5cea8');
+    c.fillStyle = '#22304d'; c.fillRect(12, baseY + 10, 488, 1);
+    label('recent', 14, baseY + 30);
+    const logs = (info.log || []).slice(0, 4);
+    if (!logs.length) {
+      c.fillStyle = '#5d729f'; c.font = '11px "Microsoft YaHei",sans-serif'; c.fillText('暂无新事件', 92, baseY + 30);
+    } else {
+      logs.forEach((item, i) => {
+        const y = baseY + 30 + i * 16;
+        c.fillStyle = '#4f638c'; c.font = '10px monospace'; c.fillText(item.time || '', 14, y);
+        c.fillStyle = '#8fb4d9'; c.font = '10px "Microsoft YaHei",sans-serif'; c.fillText(clip(item.label || '', 9), 70, y);
+        c.fillStyle = '#a9bcd6'; c.fillText(clip(item.text || '', 34), 146, y);
+      });
+    }
+    c.fillStyle = '#0e1730'; c.fillRect(0, 292, 512, 28);
+    c.fillStyle = info.statusColor || '#5ee0a0'; c.font = '12px "Microsoft YaHei",sans-serif';
+    c.fillText('● ' + (info.statusText || '状态未知'), 14, 311);
+    c.fillStyle = '#5d729f'; c.font = '10px monospace'; c.textAlign = 'right';
+    c.fillText(info.updated || '', 498, 311); c.textAlign = 'left';
+    return cv;
+  }
+
+  decorateScreen(model, p) {
+    let quad = null;
+    model.traverse((o) => {
+      if (o.isMesh && o.geometry?.attributes?.position?.count === 4 && !quad) quad = o;
+    });
+    if (!quad) return;
+    // Kenney's monitor quad uses atlas UVs far outside 0..1 (it normally
+    // samples one cell of a shared texture page), so rebuild a clean 0..1
+    // mapping on a private geometry before swapping in the live screen.
+    const geometry = quad.geometry.clone();
+    const position = geometry.attributes.position, uv = geometry.attributes.uv;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < position.count; i++) {
+      minX = Math.min(minX, position.getX(i)); maxX = Math.max(maxX, position.getX(i));
+      minY = Math.min(minY, position.getY(i)); maxY = Math.max(maxY, position.getY(i));
+    }
+    for (let i = 0; i < position.count; i++) {
+      uv.setXY(i, (position.getX(i) - minX) / (maxX - minX || 1), (position.getY(i) - minY) / (maxY - minY || 1));
+    }
+    uv.needsUpdate = true;
+    quad.geometry = geometry;
+    const seed = this.sceneScreens.length;
+    const canvas = this.screenCanvas(seed);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    quad.material = new THREE.MeshStandardMaterial({
+      map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.62, roughness: 0.42, metalness: 0,
+    });
+    quad.userData.screenSeed = seed;
+    quad.userData.screenCanvas = canvas;
+    quad.userData.screenTexture = tex;
+    quad.userData.screenKind = p.f;
+    this.sceneScreens.push({ mesh: quad, canvas, seed, kind: p.f, x: p.x + (p.w || 0) / 2, z: p.y + (p.d || 0) / 2 });
   }
 
   boxMesh(x, y, z, w, d, h, color, opts = {}) {
@@ -556,6 +710,7 @@ export class Office3D extends window.Office {
     this.room = new THREE.Group();
     this.scene.add(this.room);
     this.screens.clear();
+    this.sceneScreens = [];
     this.blinkers = [];
     this.bobbers = [];
     this.flames = [];
@@ -645,6 +800,7 @@ export class Office3D extends window.Office {
     const m = this.place(name, p.x, p.y, p.w, p.d, {
       rot: ((p.rot || 0) * Math.PI) / 180, y0: ground + (p.y0 || 0), h: p.h || null, stretch: !!p.stretch,
     });
+    if (m && (p.f === 'computerScreen' || p.f === 'laptop')) this.decorateScreen(m, p);
     if (m && p.bob) this.bobbers.push({ m, y: m.position.y, ph: p.x * 0.7 });
   }
 
@@ -759,8 +915,15 @@ export class Office3D extends window.Office {
     c.fillStyle = p.fg || '#fff';
     c.textAlign = 'center'; c.textBaseline = 'middle';
     const lines = String(p.text || '').split('\n');
-    const size = Math.min(cv.height / (lines.length + 0.6), (cv.width * 1.6) / Math.max(...lines.map((l) => l.length), 1));
-    c.font = `700 ${Math.round(size)}px ${p.font || 'ui-rounded, "Comic Sans MS", system-ui, sans-serif'}`;
+    let size = Math.min(cv.height / (lines.length + 0.6), (cv.width * 1.6) / Math.max(...lines.map((l) => l.length), 1));
+    const fontOf = (px) => `700 ${Math.round(px)}px ${p.font || 'ui-rounded, "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif'}`;
+    // 中英文混排时按实际字形宽度收缩，避免文字被面板边缘裁掉。
+    for (let guard = 0; guard < 12; guard++) {
+      c.font = fontOf(size);
+      const widest = Math.max(...lines.map((line) => c.measureText(line).width));
+      if (widest <= cv.width * .84) break;
+      size *= .9;
+    }
     lines.forEach((l, i) => c.fillText(l, cv.width / 2, (cv.height * (i + 0.8)) / (lines.length + 0.6)));
     const tex = new THREE.CanvasTexture(cv);
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -1005,14 +1168,16 @@ export class Office3D extends window.Office {
     const mixer = new THREE.AnimationMixer(obj);
     const actions = {};
     for (const clip of gltf.animations) actions[clip.name] = mixer.clipAction(clip);
-    let head = null, armR = null;
-    obj.traverse((o) => { if (o.name === 'head') head = o; if (o.name === 'arm-right') armR = o; });
+    let head = null, armR = null, armL = null;
+    obj.traverse((o) => { if (o.name === 'head') head = o; if (o.name === 'arm-right') armR = o; if (o.name === 'arm-left') armL = o; });
     const prop = new THREE.Group();
     const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.1, 10), new THREE.MeshStandardMaterial({ color: 0xffffff }));
     const book = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.28, 0.04), new THREE.MeshStandardMaterial({ color: 0xc96442 }));
     prop.add(cup, book);
     this.scene.add(obj, prop);
-    a = { obj, mixer, actions, current: null, head, headRest: head ? head.rotation.x : 0, armR, prop, cup, book, yaw: 0, last: { x: p.x, y: p.y } };
+    a = { obj, mixer, actions, current: null, head, headRest: head ? head.rotation.x : 0, armR, armL,
+      armRRest: armR ? armR.rotation.clone() : null, armLRest: armL ? armL.rotation.clone() : null,
+      prop, cup, book, yaw: 0, last: { x: p.x, y: p.y } };
     this.actors.set(p.key, a);
     return a;
   }
@@ -1187,15 +1352,25 @@ export class Office3D extends window.Office {
     // screens show who is working and on what
     const occupant = new Map();
     for (const p of this.people.values()) if (p.mode === 'work' && p.desk && !p.path.length) occupant.set(p.desk, p);
-    for (const [dk, scr] of this.screens) {
-      const p = occupant.get(dk);
+    const screenEntries = this.screenList || [...this.screens].map(([desk, mesh]) => ({ desk, mesh }));
+    for (const { desk, mesh } of screenEntries) {
+      const p = occupant.get(desk);
+      if (mesh.material?.emissiveMap) {
+        const nowMs = performance.now();
+        const flash = nowMs < (mesh.userData.flashUntil || 0);
+        mesh.material.emissive.setHex(0xffffff);
+        mesh.material.emissiveIntensity = flash
+          ? 1.55 + 0.25 * Math.sin(nowMs / 90)
+          : 0.58 + 0.14 * Math.sin(nowMs / 650);
+        continue;
+      }
       const col = p ? STATUS_COLOR[p.s.status] : null;
       if (col) {
         const pulse = p.s.status === 'thinking' ? 0.5 + 0.35 * Math.sin(t * 3 + p.phase) : 0.8 + 0.2 * Math.sin(t * 9 + p.phase);
-        scr.material.emissive.setHex(col);
-        scr.material.emissiveIntensity = pulse;
+        mesh.material.emissive.setHex(col);
+        mesh.material.emissiveIntensity = pulse;
       } else {
-        scr.material.emissive.setHex(0x000000);
+        mesh.material.emissive.setHex(0x000000);
       }
     }
     for (const b of this.blinkers) {

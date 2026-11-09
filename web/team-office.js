@@ -96,6 +96,13 @@ export class TeamOffice extends Office3D {
     this.first = false;
   }
 
+  // Kenney's `sit` is a cross-legged floor pose; at a desk use the chair
+  // variant so the character has its legs down and can reach the keyboard.
+  play(a, name) {
+    if (name === 'sit' && a.actions?.['wheelchair-sit']) name = 'wheelchair-sit';
+    super.play(a, name);
+  }
+
   setReduced(value) {
     this.reduced = value;
     if (this.controls) this.controls.enableDamping = !value;
@@ -160,7 +167,48 @@ export class TeamOffice extends Office3D {
     return super.stateOf(p);
   }
 
-  syncActors(dt) { super.syncActors(this.reduced ? 0 : dt); }
+  syncActors(dt) {
+    super.syncActors(this.reduced ? 0 : dt);
+    if (!this.loaded) return;
+    const now = performance.now() / 1000;
+    const shoulder = new THREE.Vector3(), current = new THREE.Vector3(), desired = new THREE.Vector3();
+    const q = new THREE.Quaternion(), turn = new THREE.Quaternion(), parent = new THREE.Quaternion();
+    for (const p of this.people.values()) {
+      const a = this.actors.get(p.key);
+      if (!a) continue;
+      const st = this.stateOf(p);
+      if (st.pose !== 'sit' || p.path.length || p.poi || !p.desk) continue;
+      const typing = p.s.status === 'tool' || p.s.status === 'typing';
+      const thinking = p.s.status === 'thinking';
+      const phase = p.phase || 0;
+      // wheelchair-sit 把腿抬成水平，像躺在椅子上；改成膝盖朝下、脚尖点地的坐姿。
+      const legL = a.obj.getObjectByName('leg-left'), legR = a.obj.getObjectByName('leg-right');
+      if (legL) { legL.rotation.x = -.82; legL.rotation.y = .07; }
+      if (legR) { legR.rotation.x = -.82; legR.rotation.y = -.07; }
+      // Kenney's wheelchair-sit pins the arms to the chair; aim both upper
+      // arms at the desk edge instead so the hands rest over the keyboard.
+      const targetL = new THREE.Vector3(p.x - .3, 0.92, p.y - .62);
+      const targetR = new THREE.Vector3(p.x + .4, 0.9, p.y - .58);
+      if (typing) {
+        const bob = Math.sin(now * 9 + phase) * 0.018;
+        targetL.y += bob; targetR.y -= bob;
+      }
+      const aim = (arm, target) => {
+        if (!arm) return;
+        arm.updateWorldMatrix(true, false);
+        arm.getWorldPosition(shoulder);
+        arm.getWorldQuaternion(q);
+        current.set(0, 0, 1).applyQuaternion(q).normalize();
+        desired.copy(target).sub(shoulder).normalize();
+        turn.setFromUnitVectors(current, desired);
+        arm.parent.getWorldQuaternion(parent);
+        arm.quaternion.copy(parent.invert().multiply(turn.multiply(q)));
+      };
+      aim(a.armR, targetR);
+      aim(a.armL, targetL);
+      if (a.head && a.headRest != null) a.head.rotation.x = a.headRest + (typing || thinking ? 0.22 : 0.12);
+    }
+  }
 
   bubble(p, at) {
     const c = this.ctx;

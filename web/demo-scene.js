@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { TeamOffice } from './team-office.js';
 
 const STATIONS = [
-  { x: 5.5, y: 5.7, yaw: 180, pose: 'stand' },
-  { x: 5.5, y: 12.0, yaw: 180, pose: 'stand' },
-  { x: 11.2, y: 9.4, yaw: 180, pose: 'stand' },
-  { x: 16.9, y: 6.5, yaw: 180, pose: 'stand' },
+  { x: 5.5, y: 5.35, yaw: 180, pose: 'sit' },
+  { x: 5.5, y: 12.0, yaw: 180, pose: 'sit' },
+  { x: 11.2, y: 9.4, yaw: 180, pose: 'sit' },
+  { x: 16.9, y: 6.5, yaw: 180, pose: 'sit' },
 ];
 const COLORS = { blue: '#1769e8', white: '#f6f9fe', steel: '#d2dce8', navy: '#233d61' };
 const model = (f, x, y, w, d, options = {}) => ({ f, x, y, w, d, ...options });
@@ -15,7 +15,7 @@ export function collaborationScene(count = 4, source = 'codex') {
   const stations = STATIONS.map(station => ({ ...station }));
   for (let slot = stations.length; slot < count; slot++) {
     const extra = slot - STATIONS.length;
-    stations.push({ x: 5.5 + (extra % 3) * 5.7, y: 21.5 + Math.floor(extra / 3) * 5.5, yaw: 180, pose: 'stand' });
+    stations.push({ x: 5.5 + (extra % 3) * 5.7, y: 21.5 + Math.floor(extra / 3) * 5.5, yaw: 180, pose: 'sit' });
   }
   const depth = Math.max(20, ...stations.map(station => station.y + 2.8));
   const props = [
@@ -34,15 +34,18 @@ export function collaborationScene(count = 4, source = 'codex') {
     box(7.6, 6.5, .1, .1, 2.5, '#becddd'),
     model('table', 3.0, 3.4, 3.8, 1.6, { h: .88, stretch: true }),
     model('laptop', 4.6, 3.8, .7, .6, { y0: .9, abs: true, rot: 180 }),
+    model('computerScreen', 5.2, 4.3, .95, .32, { h: .6, y0: .9, abs: true, rot: 0 }),
+    model('computerKeyboard', 5.15, 4.72, .7, .22, { y0: .9, abs: true }),
+    model('computerMouse', 5.95, 4.72, .12, .18, { y0: .9, abs: true }),
+    model('chairDesk', 5.125, 4.95, .75, .8, { h: 1.0, rot: 180 }),
     model('chairModernCushion', 3.2, 5.1, .65, .7, { rot: 180 }),
-    model('chairModernCushion', 6.0, 5.1, .65, .7, { rot: 180 }),
     model('chairModernCushion', 3.2, 2.6, .65, .7),
     model('chairModernCushion', 5.6, 2.6, .65, .7),
     model('bookcaseOpen', 1.1, .35, 2.5, .5, { h: 1.8 }),
     model('books', 1.3, .5, 1.4, .25, { h: .3, y0: 1, abs: true }),
     model('pottedPlant', 7, .7, .6, .6, { h: 1.6 }),
     model('pottedPlant', .7, 7.0, .55, .55, { h: 1.4 }),
-    { special: 'sign', x: 4.5, y: .12, z: 2.75, w: 3.3, h: .64, text: source === 'harness' ? 'DSH / CONTROL' : 'CODEX / CONTROL', bg: '#f0f5fc', fg: '#265a9d' },
+    { special: 'sign', x: 4.5, y: .12, z: 2.75, w: 3.0, h: .64, text: source === 'harness' ? 'DSH 控制' : 'CODEX 控制', bg: '#f0f5fc', fg: '#265a9d' },
   ];
   const solid = [[3, 3.4, 3.8, 1.6], [7.6, 1.7, .12, 4.8]];
   // 保留原四人工位构图，额外成员沿后方新增工作区。
@@ -54,11 +57,11 @@ export function collaborationScene(count = 4, source = 'codex') {
       box(x - 1.7, y - 1.7, 3.4, 1.1, .08, '#176de8', .92),
       box(x - 1.7, y - 1.7, .07, 1.1, .96, '#397bd5'),
       box(x + 1.63, y - 1.7, .07, 1.1, .96, '#397bd5'),
-      model('computerScreen', x - .6, y - 1.5, 1.0, .35, { h: .62, y0: 1.0, abs: true, rot: 180 }),
-      model('computerScreen', x + .45, y - 1.45, .75, .3, { h: .53, y0: 1.0, abs: true, rot: 165 }),
-      model('computerKeyboard', x - .45, y - 1.0, .75, .22, { y0: 1.02, abs: true }),
-      model('computerMouse', x + .45, y - .98, .13, .18, { y0: 1.02, abs: true }),
-      model('chairDesk', x - .4, y + .5, .75, .8, { h: 1.0, rot: 180 }),
+      model('computerScreen', x - .6, y - 1.5, 1.0, .35, { h: .62, y0: 1.0, abs: true, rot: 0 }),
+      model('computerScreen', x + .45, y - 1.45, .75, .3, { h: .53, y0: 1.0, abs: true, rot: -12 }),
+      model('computerKeyboard', x - .45, y - .74, .75, .22, { y0: 1.02, abs: true }),
+      model('computerMouse', x + .45, y - .72, .13, .18, { y0: 1.02, abs: true }),
+      model('chairDesk', x - .375, y - .4, .75, .8, { h: 1.0, rot: 180 }),
       model('plantSmall1', x - 1.3, y - 1.3, .3, .3, { h: .4, y0: 1.02, abs: true }),
       model('cardboardBoxClosed', x + 1.0, y + .35, .55, .5, { h: .45 }),
     );
@@ -83,7 +86,7 @@ export function collaborationScene(count = 4, source = 'codex') {
     model('kitchenSink', 3.4, 17.1, 1.0, .7, { h: .15, y0: 1.01, abs: true }),
     model('pottedPlant', 20.7, 15.7, .7, .7, { h: 1.5 }),
     model('pottedPlant', 8.7, 16.8, .6, .6, { h: 1.5 }),
-    { special: 'sign', x: 17.5, y: .12, z: 3.0, w: 3.5, h: .65, text: 'AGENT OPERATIONS', bg: '#edf4fe', fg: '#3d6591' },
+    { special: 'sign', x: 17.5, y: .12, z: 3.0, w: 3.2, h: .65, text: 'Agent 协作', bg: '#edf4fe', fg: '#3d6591' },
   );
   return { W: 23, D: depth, viewH: 4.3, background: '#e7edf7', sky: '#dcecff',
     spawn: { x: 1, y: 15 }, walk: [[0, 0, 23, depth]], solid, stations, pois: [], props };
@@ -104,6 +107,12 @@ export class DemoScene extends TeamOffice {
     this.routeGroup = null;
     this.routeId = null;
     this.eventRoutes = [];
+    this.activityLog = new Map();
+    this.screenDesk = null;
+    this.screenMesh = null;
+    this.screenRefs = null;
+    this.screenReturnFocus = null;
+    this.screenInert = [];
     this.playing = false;
     this.raycaster = new THREE.Raycaster();
     this.onFrame = () => this.updatePins();
@@ -155,8 +164,32 @@ export class DemoScene extends TeamOffice {
       stripes.add(m);
     }
     this.room.add(stripes);
+    // Match every decorated monitor face to its desk so the draw loop can
+    // keep the screens alive (and use them as data-transfer endpoints).
+    this.screens = new Map();
+    this.screenMeshes = [];
+    this.screenList = [];
+    const screenDistance = new Map();
+    for (const screen of this.sceneScreens || []) {
+      if (screen.kind !== 'computerScreen') continue;
+      let best = null, bestDistance = Infinity;
+      for (const desk of this.plan.desks) {
+        const distance = Math.hypot(screen.x - desk.seat.x, screen.z - desk.seat.y);
+        if (distance < bestDistance) { bestDistance = distance; best = desk; }
+      }
+      if (best && bestDistance < 2.2) {
+        screen.mesh.userData.desk = best;
+        this.screenMeshes.push(screen.mesh);
+        this.screenList.push({ desk: best, mesh: screen.mesh, record: screen });
+        if (!screenDistance.has(best) || bestDistance < screenDistance.get(best)) {
+          screenDistance.set(best, bestDistance);
+          this.screens.set(best, screen.mesh);
+        }
+      }
+    }
     this.routeId = null;
     this.makeRoute(this.selectedId || this.rootId);
+    this.paintScreens(true);
   }
 
   floorMark(text, x, z, w, h) {
@@ -187,30 +220,39 @@ export class DemoScene extends TeamOffice {
       this.routeId = null;
     }
     super.setTeam(agents, rootId);
-    for (const p of this.people.values()) p.desk.pose = 'stand';
+    for (const p of this.people.values()) p.desk.pose = 'sit';
     if (this.selectedId && !this.people.has(this.selectedId)) this.selectedId = rootId;
     this.makeRoute(this.selectedId || rootId);
+    this.paintScreens();
   }
 
   bubble() {}
 
+  screenPoint(person) {
+    const seat = person.desk.seat;
+    return new THREE.Vector3(seat.x + .1, 1.3, seat.y - 1.15);
+  }
+
   pathBetween(from, to) {
     if (!from?.desk || !to?.desk || from === to) return null;
-    const a = from.desk.seat, b = to.desk.seat;
-    const start = new THREE.Vector3(a.x + (from.s.id === this.rootId ? .8 : 0), .07, a.y + (from.s.id === this.rootId ? 1.1 : .65));
-    const end = new THREE.Vector3(b.x, .07, b.y + .65);
-    const points = [start, new THREE.Vector3(8.2, .07, start.z), new THREE.Vector3(8.2, .07, end.z), end];
-    return new THREE.CatmullRomCurve3(points.filter((point, i) => !i || point.distanceTo(points[i - 1]) > .01), false, 'centripetal', .04);
+    const start = this.screenPoint(from), end = this.screenPoint(to);
+    const distance = start.distanceTo(end);
+    const mid = new THREE.Vector3(
+      (start.x + end.x) / 2,
+      Math.max(start.y, end.y) + .75 + Math.min(1.3, distance * .1),
+      (start.z + end.z) / 2 + .35,
+    );
+    return new THREE.CatmullRomCurve3([start, mid, end], false, 'centripetal', .5);
   }
 
   addRouteLine(group, curve) {
     for (const [radius, color, opacity] of [[.18, '#42c8ff', .16], [.065, '#0870ff', .94]]) {
       group.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 100, radius, 6, false),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false })));
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, depthTest: false })));
     }
     const dash = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(70)),
       new THREE.LineDashedMaterial({ color: '#e9fbff', dashSize: .12, gapSize: .18, linewidth: 2 }));
-    dash.position.y = .07; dash.computeLineDistances(); group.add(dash);
+    dash.computeLineDistances(); group.add(dash);
   }
 
   clearEventRoutes() {
@@ -237,10 +279,7 @@ export class DemoScene extends TeamOffice {
     this.packet = null;
     if (this.routeCurve) {
       this.addRouteLine(this.routeGroup, this.routeCurve);
-      if (!this.live) {
-        this.packet = new THREE.Mesh(new THREE.SphereGeometry(.115, 12, 8), new THREE.MeshBasicMaterial({ color: '#d8f9ff' }));
-        this.routeGroup.add(this.packet);
-      }
+      this.packet = null;
     }
     for (const dx of [-1, 1]) for (const dz of [-1, 1]) {
       const x = s.x + dx * 1.95, z = s.y - .4 + dz * 1.4;
@@ -281,6 +320,7 @@ export class DemoScene extends TeamOffice {
   }
 
   animateEvent(event) {
+    this.remember(event);
     if (event.type === 'report') super.animateEvent(event);
     this.flows = [];
     if (this.reduced || !this.loaded || !['assign', 'message', 'report'].includes(event.type)) return;
@@ -290,9 +330,22 @@ export class DemoScene extends TeamOffice {
     if (!curve) return;
     const group = new THREE.Group();
     this.addRouteLine(group, curve);
-    const packet = new THREE.Mesh(new THREE.SphereGeometry(.14, 12, 8), new THREE.MeshBasicMaterial({ color: '#d8f9ff' }));
-    group.add(packet); this.scene.add(group);
-    this.eventRoutes.push({ group, curve, packet, start: performance.now() });
+    const now = performance.now();
+    const packets = [];
+    for (let i = 0; i < 3; i++) {
+      const packet = new THREE.Mesh(new THREE.SphereGeometry(.105, 12, 8),
+        new THREE.MeshBasicMaterial({ color: i ? '#bfefff' : '#ffffff', transparent: true, opacity: .95, depthWrite: false, depthTest: false }));
+      packet.visible = false;
+      group.add(packet); packets.push(packet);
+    }
+    this.scene.add(group);
+    for (const p of [from, to]) {
+      if (!p?.desk) continue;
+      for (const entry of this.screenList || []) {
+        if (entry.desk === p.desk) entry.mesh.userData.flashUntil = now + 900;
+      }
+    }
+    this.eventRoutes.push({ group, curve, packets, start: now });
     while (this.eventRoutes.length > 12) {
       const old = this.eventRoutes.shift(); this.scene.remove(old.group); disposeObject(old.group);
     }
@@ -312,11 +365,27 @@ export class DemoScene extends TeamOffice {
   }
 
   pointer(e, click) {
-    if (!click || !this.camera || !this.loaded) return;
+    if (this.screenModal) return;
+    if (!click) {
+      if (e.buttons) return;
+      if (!this.camera || !this.loaded) return;
+      const box = this.canvas.getBoundingClientRect();
+      this.raycaster.setFromCamera(new THREE.Vector2((e.clientX - box.left) / box.width * 2 - 1, 1 - (e.clientY - box.top) / box.height * 2), this.camera);
+      this.canvas.style.cursor = this.raycaster.intersectObjects(this.screenMeshes || [], false).length ? 'pointer' : '';
+      return;
+    }
+    if (!this.camera || !this.loaded) return;
     if (this.downPoint && Math.hypot(e.clientX - this.downPoint.x, e.clientY - this.downPoint.y) > 6) return;
     const rect = this.canvas.getBoundingClientRect();
     this.raycaster.setFromCamera(new THREE.Vector2((e.clientX - rect.left) / rect.width * 2 - 1, 1 - (e.clientY - rect.top) / rect.height * 2), this.camera);
-    for (const hit of this.raycaster.intersectObjects([...this.actors.values()].map((a) => a.obj), true)) {
+    const actorHits = this.raycaster.intersectObjects([...this.actors.values()].map((a) => a.obj), true);
+    const screenHits = this.raycaster.intersectObjects(this.screenMeshes || [], false);
+    const screenHit = screenHits[0];
+    if (screenHit && (!actorHits[0] || screenHit.distance < actorHits[0].distance)) {
+      const desk = screenHit.object.userData.desk;
+      if (desk) { this.openScreen(desk, screenHit.object); return; }
+    }
+    for (const hit of actorHits) {
       let object = hit.object;
       while (object && !object.userData.agentId) object = object.parent;
       if (object?.userData.agentId) { this.selectCallback(object.userData.agentId); return; }
@@ -333,15 +402,196 @@ export class DemoScene extends TeamOffice {
     }
   }
 
+  screenStatus(status) {
+    const map = {
+      working: ['执行中', '#5ee0a0'], tool: ['调用工具', '#5ee0a0'], typing: ['输入中', '#5ee0a0'],
+      thinking: ['思考中', '#f0c35e'], done: ['已完成', '#5ee0a0'],
+      waiting: ['等待中', '#f0c35e'], waiting_agents: ['等待子 Agent', '#f0c35e'],
+      error: ['出错', '#ff7a6b'], interrupted: ['已中断', '#f0a35e'],
+      closed: ['已结束', '#8fa6c6'], idle: ['空闲', '#8fa6c6'], unknown: ['状态未知', '#8fa6c6'],
+    };
+    return map[status] || [String(status || '状态未知'), '#8fa6c6'];
+  }
+
+  remember(event) {
+    const id = event.sessionId || event.targetId;
+    if (!id) return;
+    const labels = { assign: '派发', message: '消息', report: '汇报', tool: '工具', status: '状态' };
+    const list = this.activityLog.get(id) || [];
+    const at = Number(event.at);
+    const time = new Date(Number.isFinite(at) && at > 0 ? at : Date.now()).toLocaleTimeString('zh-CN', { hour12: false });
+    list.unshift({ time, label: labels[event.type] || event.type || '事件', text: event.preview || event.title || '' });
+    this.activityLog.set(id, list.slice(0, 6));
+  }
+
+  screenInfo(person) {
+    if (!person) return { empty: true };
+    const s = person.s;
+    const [statusText, statusColor] = this.screenStatus(s.status);
+    return {
+      name: s.name,
+      code: s.code,
+      statusText, statusColor,
+      task: s.task || s.title || '等待任务',
+      context: s.file && s.file !== '日志未记录' ? s.file : '',
+      log: this.activityLog.get(s.id) || [],
+      updated: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+    };
+  }
+
+  paintScreens(force = false) {
+    for (const entry of this.screenList || []) {
+      const person = [...this.people.values()].find(p => p.desk === entry.desk) || null;
+      const info = this.screenInfo(person);
+      const sig = person
+        ? [person.s.id, person.s.status, person.s.task, person.s.file, info.log[0]?.time || ''].join('|')
+        : 'empty';
+      if (!force && entry.sig === sig) continue;
+      entry.sig = sig;
+      const canvas = this.screenCanvas(entry.record.seed, 512, info);
+      entry.record.canvas = canvas;
+      const tex = entry.mesh.userData.screenTexture;
+      if (tex) { tex.image = canvas; tex.needsUpdate = true; }
+    }
+    if (this.screenModal) this.updateScreenModal();
+  }
+
+  screenText(info, person) {
+    if (!person) return '未分配工位\n\n等待 Agent 入座';
+    const [statusText] = this.screenStatus(person.s.status);
+    const lines = [
+      person.s.name + ' · ' + (person.s.role || 'Agent'),
+      '状态  ' + statusText,
+      '任务  ' + (info.task || '等待任务'),
+      info.context ? '模型/工具  ' + info.context : '模型/工具  未记录',
+      '',
+      '最近事件',
+    ];
+    if (info.log.length) for (const item of info.log) lines.push(item.time + '  ' + item.label + '  ' + item.text);
+    else lines.push('暂无新事件');
+    return lines.join('\n');
+  }
+
+  updateScreenModal() {
+    const refs = this.screenRefs;
+    if (!refs || !this.screenDesk) return;
+    const person = [...this.people.values()].find(p => p.desk === this.screenDesk) || null;
+    const info = this.screenInfo(person);
+    const [statusText, statusColor] = this.screenStatus(person?.s.status);
+    refs.name.textContent = person?.s.name || '空闲工位';
+    refs.sub.textContent = person ? [person.s.role || 'Agent', statusText].filter(Boolean).join(' · ') : '暂无 Agent 入座';
+    refs.dot.style.background = statusColor;
+    refs.dot.style.boxShadow = '0 0 10px ' + statusColor;
+    refs.card.dataset.status = person?.s.status || 'empty';
+    const seed = Number(this.screenMesh?.userData?.screenSeed) || 0;
+    refs.body.replaceChildren(this.screenCanvas(seed, 1280, info));
+    refs.live.textContent = this.screenText(info, person);
+    refs.meta.textContent = person
+      ? [person.s.code || 'AGENT', info.context ? '模型/工具 ' + info.context : '模型/工具 未记录'].join(' · ')
+      : '未分配工位';
+    refs.task.textContent = person ? info.task : '等待 Agent 入座';
+    refs.task.title = refs.task.textContent;
+  }
+
+  openScreenFor(agentId) {
+    const person = this.people.get(agentId);
+    if (!person?.desk) return false;
+    const entry = (this.screenList || []).find(item => item.desk === person.desk);
+    if (!entry) return false;
+    this.openScreen(person.desk, entry.mesh);
+    return true;
+  }
+
+  openScreen(desk, mesh) {
+    if (this.screenModal) this.closeScreen();
+    this.screenDesk = desk;
+    this.screenMesh = mesh || (this.screenList || []).find(item => item.desk === desk)?.mesh || null;
+    this.screenReturnFocus = document.activeElement;
+    const overlay = document.createElement('div');
+    overlay.className = 'screen-modal';
+    const card = document.createElement('div');
+    card.className = 'screen-modal-card';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    const titleId = 'screen-modal-title-' + Math.random().toString(36).slice(2, 8);
+    card.setAttribute('aria-labelledby', titleId);
+    const header = document.createElement('header');
+    const dot = document.createElement('span');
+    dot.className = 'screen-modal-dot';
+    const title = document.createElement('div');
+    title.className = 'screen-modal-title';
+    const name = document.createElement('strong');
+    name.id = titleId;
+    const sub = document.createElement('small');
+    title.append(name, sub);
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'screen-modal-close';
+    close.setAttribute('aria-label', '关闭屏幕详情');
+    close.textContent = '×';
+    header.append(dot, title, close);
+    const body = document.createElement('div');
+    body.className = 'screen-modal-body';
+    const live = document.createElement('pre');
+    live.className = 'screen-modal-live';
+    const footer = document.createElement('footer');
+    const meta = document.createElement('span');
+    meta.className = 'screen-modal-meta';
+    const task = document.createElement('span');
+    task.className = 'screen-modal-task';
+    const hint = document.createElement('span');
+    hint.className = 'screen-modal-hint';
+    hint.textContent = '按 Esc 关闭';
+    footer.append(meta, task, hint);
+    card.append(header, body, live, footer);
+    overlay.appendChild(card);
+    this.screenRefs = { overlay, card, name, sub, dot, body, live, meta, task, hint };
+    overlay.addEventListener('click', (event) => { if (event.target === overlay) this.closeScreen(); });
+    close.addEventListener('click', () => this.closeScreen());
+    overlay.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); this.closeScreen(); }
+      else if (event.key === 'Tab') { event.preventDefault(); close.focus(); }
+      else if (event.key === '/') event.preventDefault();
+    });
+    this.screenEsc = (event) => { if (event.key === 'Escape' && this.screenModal) this.closeScreen(); };
+    window.addEventListener('keydown', this.screenEsc);
+    this.screenInert = [...document.body.children].filter(el => el !== overlay && !['SCRIPT', 'STYLE', 'LINK'].includes(el.tagName));
+    for (const el of this.screenInert) { el.dataset.screenInert = el.inert ? '1' : '0'; el.inert = true; }
+    document.body.appendChild(overlay);
+    this.screenModal = overlay;
+    this.updateScreenModal();
+    close.focus();
+  }
+
+  closeScreen() {
+    if (this.screenEsc) window.removeEventListener('keydown', this.screenEsc);
+    this.screenEsc = null;
+    if (this.screenModal) { this.screenModal.remove(); this.screenModal = null; }
+    for (const el of this.screenInert || []) { el.inert = el.dataset.screenInert === '1'; delete el.dataset.screenInert; }
+    this.screenInert = [];
+    this.screenRefs = null;
+    this.screenDesk = null;
+    this.screenMesh = null;
+    const back = this.screenReturnFocus;
+    this.screenReturnFocus = null;
+    if (back && back.isConnected) { try { back.focus({ preventScroll: true }); } catch {} }
+  }
+
   draw() {
     const now = performance.now();
     for (const route of this.eventRoutes || []) {
       const age = now - route.start;
-      route.packet.position.copy(route.curve.getPoint(Math.min(1, age / 2200)));
-      route.packet.position.y += .09;
-      if (age >= 2600) { this.scene.remove(route.group); disposeObject(route.group); }
+      for (let i = 0; i < route.packets.length; i++) {
+        const packet = route.packets[i];
+        const t = (age - 120 - i * 240) / 1500;
+        if (t < 0 || t > 1) { packet.visible = false; continue; }
+        packet.visible = true;
+        packet.position.copy(route.curve.getPoint(t));
+        packet.scale.setScalar(1 - .3 * Math.max(0, t - .72) / .28);
+      }
+      if (age >= 2200) { this.scene.remove(route.group); disposeObject(route.group); }
     }
-    if (this.eventRoutes) this.eventRoutes = this.eventRoutes.filter(route => now - route.start < 2600);
+    if (this.eventRoutes) this.eventRoutes = this.eventRoutes.filter(route => now - route.start < 2200);
     const result = super.draw();
     if (this.packet && this.routeCurve) {
       const t = this.reduced || !this.playing ? .58 : (performance.now() % 4500) / 4500;
@@ -351,6 +601,7 @@ export class DemoScene extends TeamOffice {
   }
 
   destroy() {
+    this.closeScreen();
     this.clearEventRoutes();
     if (this.routeGroup) disposeObject(this.routeGroup);
     super.destroy();

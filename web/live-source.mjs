@@ -136,6 +136,18 @@ export class LiveSource extends EventTarget {
     return this.connect(rootId);
   }
 
+  async openSession(rootId) {
+    const root = this.raw.roots?.find(item => item.id === rootId);
+    if (!root) return false;
+    if (this.kind === 'harness') {
+      this.directoryKey = directoryKey(root.cwd);
+      localStorage.setItem('office.harness.live.directory', this.directoryKey);
+    }
+    this.explicitRootId = null;
+    this.follow = false;
+    try { return (await this.select(rootId)) !== false; } catch { return false; }
+  }
+
   selectDirectory(key) {
     const roots = directorySessions(this.raw.roots, key);
     if (!roots.length) return Promise.resolve(false);

@@ -207,10 +207,28 @@ test('stop 释放轮询并阻止进行中读取回写，手动刷新也不会更
   assert.equal(f.watcher.running, false);
 });
 
-test('主任务列表最多 60 条，不读取其他主任务正文', async t => {
+test('主任务列表按创建时间倒序，不读取其他主任务正文', async t => {
   const f = fixture(t); for (let index = 0; index < 70; index++) f.create('root-' + index);
-  await f.watcher.refresh(); assert.equal(f.watcher.snapshot().roots.length, 60);
+  f.sessions.get('root-69').session.createdAt = 1000;
+  f.sessions.get('root-0').session.createdAt = 900;
+  delete f.sessions.get('root-1').session.createdAt;
+  await f.watcher.refresh();
+  const roots = f.watcher.snapshot().roots;
+  assert.equal(roots.length, 70);
+  assert.deepEqual(roots.slice(0, 2).map(root => root.id), ['root-69', 'root-0']);
+  assert.equal(roots.at(-1).id, 'root-1');
   assert.deepEqual(f.reads, ['root-69']);
+});
+
+test('主任务超过 500 条时只保留最近 500 条并提示总数', async t => {
+  const f = fixture(t); for (let index = 0; index < 501; index++) f.create('root-' + index);
+  f.sessions.get('root-500').session.createdAt = 1000;
+  await f.watcher.refresh();
+  const data = f.watcher.snapshot();
+  assert.equal(data.roots.length, 500);
+  assert.equal(data.roots[0].id, 'root-500');
+  assert.ok(data.warnings.some(text => text.includes('500') && text.includes('501')));
+  assert.deepEqual(f.reads, ['root-500']);
 });
 
 test('两个 SSE 客户端分别观察不同根任务，活跃团队独立刷新，断开后释放读取', async t => {
@@ -239,6 +257,7 @@ test('根会话提供宿主标题与创建时间，不用工作目录名称冒�
   f.create('untitled'); f.create('named'); f.create('root'); f.create('child', 'root');
   f.sessions.get('named').session.cwd = 'F:/projects/shared';
   f.sessions.get('named').session.createdAt = 1700000000000;
+  f.sessions.get('root').session.createdAt = 1800000000000;
   f.start('root'); f.user('root', '真实任务摘要');
   f.add('root', 'session/title', { title: '当前会话的宿主标题' });
   titles.set('named', '检查支付接口');

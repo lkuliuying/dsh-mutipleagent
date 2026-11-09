@@ -2,7 +2,7 @@
 
 const { EventEmitter } = require('node:events');
 const { createHash } = require('node:crypto');
-const ROOT_LIMIT = 60;
+const ROOT_LIMIT = 500;
 const TEAM_LIMIT = 128;
 const TITLE_REFRESH_INTERVAL = 30000;
 const terminal = new Set(['done', 'error', 'interrupted', 'closed']);
@@ -27,6 +27,17 @@ function visibleText(event, kind) {
   if (kind === 'sent') return messageArguments(event)?.message || '';
   if (kind === 'tool') return event.type === 'tool/call' && typeof event.data?.name === 'string' ? event.data.name : '';
   return '';
+}
+
+function createdAtValue(value) {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  const parsed = typeof value === 'string' ? Date.parse(value) : NaN;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function newestRoots(records) {
+  return [...records].filter(record => record.header.origin !== 'subagent')
+    .sort((a, b) => createdAtValue(b.header.createdAt) - createdAtValue(a.header.createdAt));
 }
 
 function newAgent(header) {
@@ -230,10 +241,12 @@ class HarnessWatcher extends EventEmitter {
     const listed = await this.query.listSessions();
     if (this.stopped || epoch !== this.epoch) return;
     const records = new Map(listed.map(record => [record.header.id, record]));
-    const roots = listed.filter(record => record.header.origin !== 'subagent').slice(0, ROOT_LIMIT);
+    const allRoots = newestRoots(records.values());
+    const roots = allRoots.slice(0, ROOT_LIMIT);
     const selectedId = roots.some(record => record.header.id === this.selectedId) ? this.selectedId : roots[0]?.header.id || null;
     const activeRoots = new Set([selectedId, ...this.subscriptions.keys()].filter(id => roots.some(record => record.header.id === id)));
     const limited = [], warnings = [];
+    if (allRoots.length > ROOT_LIMIT) warnings.push('会话较多，仅显示最近 ' + ROOT_LIMIT + ' 个（共 ' + allRoots.length + ' 个）');
     for (const rootId of activeRoots) {
       const team = [...records.values()].filter(record => rootOf(record.header.id, records) === rootId);
       limited.push(...team.sort((a, b) => a.header.id === rootId ? -1 : b.header.id === rootId ? 1 : 0).slice(0, TEAM_LIMIT));
@@ -299,7 +312,7 @@ class HarnessWatcher extends EventEmitter {
   }
 
   roots() {
-    return [...this.records.values()].filter(record => record.header.origin !== 'subagent').slice(0, ROOT_LIMIT).map(({ header }) => {
+    return newestRoots(this.records.values()).slice(0, ROOT_LIMIT).map(({ header }) => {
       const agent = this.cache.get(header.id)?.agent;
       return { id: header.id, title: this.titles.get(header.id)?.title || agent?.task || '', cwd: header.cwd || '',
         createdAt: header.createdAt, status: agent?.status || 'unknown', at: agent?.lastEventAt || header.createdAt };
