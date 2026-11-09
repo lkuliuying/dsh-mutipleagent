@@ -244,17 +244,36 @@ export function startLiveOffice() {
     $('task-search').value = '';
     renderQueue();
   }
+  let lastSearchSignature = '';
   function search() {
     const results = $('search-result-list');
+    const needle = query.toLowerCase();
+    const sessionHits =
+      query && source.kind === 'harness' ? (data.roots || []).filter(root => [root.title, root.cwd, root.id].join(' ').toLowerCase().includes(needle)) : [];
+    const agentHits = query ? agents().filter(matches) : [];
+    const eventHits = query
+      ? (data.events || []).filter(event => [event.type, eventText(event.type), event.preview].join(' ').toLowerCase().includes(needle))
+      : [];
+    const shown = Math.min(sessionHits.length, 8) + Math.min(agentHits.length, 8) + Math.min(eventHits.length, 5);
+    const total = sessionHits.length + agentHits.length + eventHits.length;
+    // 快照每秒刷新一次，命中集合没变时不重建列表 —— 否则按钮会在点击途中被替换，
+    // 既让浏览器的点击落空，也会打断键盘焦点与屏幕阅读器的当前位置。
+    const signature = JSON.stringify([
+      query,
+      locale(),
+      total,
+      shown,
+      sessionHits.slice(0, 8).map(root => [root.id, root.title, root.cwd, root.createdAt, root.at]),
+      agentHits.slice(0, 8).map(s => [s.id, s.name, s.title, s.file, s.role, s.icon]),
+      eventHits.slice(0, 5).map(event => [event.id, event.type, event.preview, event.at, event.sessionId]),
+    ]);
+    if (signature === lastSearchSignature) {
+      searchNavigation.refresh();
+      return;
+    }
+    lastSearchSignature = signature;
     results.replaceChildren();
     if (query) {
-      const needle = query.toLowerCase();
-      const sessionHits =
-        source.kind === 'harness' ? (data.roots || []).filter(root => [root.title, root.cwd, root.id].join(' ').toLowerCase().includes(needle)) : [];
-      const agentHits = agents().filter(matches);
-      const eventHits = (data.events || []).filter(event => [event.type, eventText(event.type), event.preview].join(' ').toLowerCase().includes(needle));
-      const shown = Math.min(sessionHits.length, 8) + Math.min(agentHits.length, 8) + Math.min(eventHits.length, 5);
-      const total = sessionHits.length + agentHits.length + eventHits.length;
       if (total > shown) {
         results.append(node('p', 'search-note', t('livePage.searchNote', { total, shown })));
       }

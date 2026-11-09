@@ -4,7 +4,7 @@ import { startLiveOffice } from './live-office.js';
 import { applyOfficeBrand, officePage, officeSource } from './base-url.mjs';
 import { enhanceSelect, bindSearchNavigation, closeOfficeControls } from './office-controls.js';
 import { createNotificationState } from './notifications.mjs';
-import { mountLangSwitch, onLangChange, t } from './i18n.mjs';
+import { locale, mountLangSwitch, onLangChange, t } from './i18n.mjs';
 
 if (new URLSearchParams(location.search).get('mode') === 'live') startLiveOffice();
 else startDemo();
@@ -199,10 +199,18 @@ function startDemo() {
     if (!filtered.length) queue.append(element('div', 'queue-empty', t('demo.noMatchingTasks')));
   }
 
+  let lastSearchSignature = '';
   function renderSearch() {
     const results = $('search-result-list');
-    results.replaceChildren();
     const filtered = query ? snapshot.agents.filter(matches) : [];
+    // 演示数据每次 tick 都会重绘；命中集合不变时不重建按钮，避免点击过程中被替换。
+    const signature = JSON.stringify([query, locale(), filtered.map(s => [s.id, s.name, s.title, s.file, s.icon])]);
+    if (signature === lastSearchSignature) {
+      searchNavigation.refresh();
+      return;
+    }
+    lastSearchSignature = signature;
+    results.replaceChildren();
     for (const s of filtered) {
       const button = element('button', 'search-result');
       button.type = 'button';

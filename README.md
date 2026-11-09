@@ -17,20 +17,21 @@ DeepSeek Harness 多 Agent 3D 协作办公室插件。安装后从 Harness 侧�
 
 以上为 `npm run screenshots` 生成的演示画面（演示数据，非真实会话）。
 
-当前版本为 `v0.2.0`，包名为 `dsh-mutipleagent`，仓库地址为 [lkuliuying/dsh-mutipleagent](https://github.com/lkuliuying/dsh-mutipleagent)。当前兼容目标是 Harness `0.2.2-rc.1`，需要 Node.js `^22.19.0 || >=24.0.0`。
+当前版本为 `v0.2.0`，包名为 `dsh-mutipleagent`，仓库地址为 [lkuliuying/dsh-mutipleagent](https://github.com/lkuliuying/dsh-mutipleagent)。兼容 DeepSeek Harness `^0.2.2-rc.1`，需要 Node.js `^22.19.0 || >=24.0.0`。
 
 各版本变化见 [CHANGELOG.md](CHANGELOG.md)，发布说明见 [GitHub Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases)。
 
 ## v0.2.0 更新
 
 - 中英双语界面，默认跟随系统语言，顶栏可切换。
-- 渲染与读取都提速：首屏只等家具和 3 个角色，`app.js` 从 731.6 KB 降到 13.2 KB（共享 chunk + gzip），会话没有新事件时不再重复折叠。
+- 渲染与读取都提速：首屏只等家具和 3 个角色；`app.js` 从 731.6 KB 降到 10.5 KB、`demo.js` 从 814 KB 降到 73.4 KB，three.js 只打一份共享 chunk 并启用 gzip；会话没有新事件时不再重复折叠。
 - 静态资源支持 `ETag` / `304` 与 gzip；没有页面连接时停止轮询，打开即刷新。
 - `/api/health` 增加版本、运行时长、客户端数、读取耗时与轮询状态。
 - 工程化：ESLint、Prettier、`.gitattributes`、CI（Node 22.19 / 24 + 浏览器验收 + 构建产物一致性）、`npm run release` 一键发布。
 - 修正演示模式下 `/api/health` 报错、模型未加载完成时的空引用等问题。
 
 完整变更（含 v0.1～v0.1.3）见 [CHANGELOG.md](CHANGELOG.md)，发布说明见 [Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases)。
+
 ## 安装到 Harness
 
 ### 线上安装与更新
