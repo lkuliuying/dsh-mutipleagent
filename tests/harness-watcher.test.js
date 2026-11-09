@@ -45,6 +45,7 @@ test('仅读取选中团队，普通 fork 独立，真正子 Agent 支持嵌套'
   const data = f.watcher.snapshot();
   assert.equal(data.source, 'harness');
   assert.equal(data.rootId, 'root');
+  assert.equal(data.roots.find(root => root.id === 'root').title, '检查接口与测试');
   assert.deepEqual(new Set(data.roots.map(root => root.id)), new Set(['root', 'fork', 'other']));
   assert.deepEqual(new Set(data.agents.map(agent => agent.id)), new Set(['root', 'child', 'nested']));
   assert.deepEqual(new Set(f.reads), new Set(['root', 'child', 'nested']));
@@ -231,4 +232,89 @@ test('两个 SSE 客户端分别观察不同根任务，活跃团队独立刷新
   f.reads.length = 0; releaseFirst(); releaseFirst(); await f.watcher.refresh();
   assert.deepEqual(new Set(f.reads), new Set(['second']));
   releaseSecond(); f.watcher.stop(); assert.equal(f.watcher.subscriptions.size, 0);
+});
+
+test('根会话提供宿主标题与创建时间，不用工作目录名称冒充会话标题', async t => {
+  const f = fixture(t), titles = new Map(), batches = [];
+  f.create('untitled'); f.create('named'); f.create('root'); f.create('child', 'root');
+  f.sessions.get('named').session.cwd = 'F:/projects/shared';
+  f.sessions.get('named').session.createdAt = 1700000000000;
+  f.start('root'); f.user('root', '真实任务摘要');
+  f.add('root', 'session/title', { title: '当前会话的宿主标题' });
+  titles.set('named', '检查支付接口');
+  f.query.readTitleSnapshots = async ids => {
+    batches.push(ids);
+    return ids.map(id => ({ sessionId: id, status: 'fulfilled', value: {
+      session: f.sessions.get(id).session, ...(titles.has(id) ? { title: { title: titles.get(id), eventSeq: 1 } } : {}),
+    } }));
+  };
+  await f.watcher.refresh();
+  const roots = f.watcher.snapshot().roots;
+  assert.equal(roots.find(root => root.id === 'root').title, '当前会话的宿主标题');
+  assert.equal(roots.find(root => root.id === 'named').title, '检查支付接口');
+  assert.equal(roots.find(root => root.id === 'named').createdAt, 1700000000000);
+  assert.equal(roots.find(root => root.id === 'named').cwd, 'F:/projects/shared');
+  assert.equal(roots.find(root => root.id === 'untitled').title, '');
+  assert.deepEqual(new Set(batches[0]), new Set(['named', 'untitled']));
+  assert.deepEqual(new Set(f.reads), new Set(['root', 'child']));
+});
+
+test('当前会话重命名即时更新，未选中会话标题定期刷新且不每秒扫描', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1700000000000 });
+  const f = fixture(t), batches = [];
+  f.create('other'); f.create('root'); f.start('root');
+  f.add('root', 'session/title', { title: '旧名称' });
+  let title = '后台旧名称';
+  f.query.readTitleSnapshots = async ids => {
+    batches.push(ids);
+    return ids.map(id => ({ sessionId: id, status: 'fulfilled', value: { session: f.sessions.get(id).session, title: { title } } }));
+  };
+  await f.watcher.refresh();
+  f.add('root', 'session/title', { title: '当前会话新名称' }); title = '后台新名称';
+  for (let index = 0; index < 3; index++) { t.mock.timers.tick(1000); await f.watcher.refresh(); }
+  assert.equal(batches.length, 1);
+  assert.equal(f.watcher.snapshot().roots.find(root => root.id === 'root').title, '当前会话新名称');
+  assert.equal(f.watcher.snapshot().roots.find(root => root.id === 'other').title, '后台旧名称');
+  t.mock.timers.tick(30000); await f.watcher.refresh();
+  assert.equal(batches.length, 2);
+  assert.equal(f.watcher.snapshot().roots.find(root => root.id === 'other').title, '后台新名称');
+  assert.deepEqual(new Set(f.reads), new Set(['root']));
+});
+
+test('标题单项与批量读取失败均隔离，保留已知标题并在下一周期恢复', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1700000000000 });
+  const f = fixture(t); f.create('failed'); f.create('named'); f.create('root'); f.start('root');
+  let failure = false;
+  f.query.readTitleSnapshots = async ids => ids.map(id => id === 'failed' && failure
+    ? { sessionId: id, status: 'rejected', reason: new Error('private details') }
+    : { sessionId: id, status: 'fulfilled', value: { session: f.sessions.get(id).session, title: { title: '名称 ' + id } } });
+  await f.watcher.refresh(); failure = true;
+  t.mock.timers.tick(30000); await f.watcher.refresh();
+  let data = f.watcher.snapshot();
+  assert.equal(data.roots.find(root => root.id === 'failed').title, '名称 failed');
+  assert.equal(data.roots.find(root => root.id === 'named').title, '名称 named');
+  assert.equal(data.agents[0].status, 'thinking');
+  assert.match(data.warnings.join(), /部分会话标题暂时无法读取/);
+  assert.equal(JSON.stringify(data).includes('private details'), false);
+  const readTitles = f.query.readTitleSnapshots;
+  f.query.readTitleSnapshots = async () => { throw new Error('private batch details'); };
+  t.mock.timers.tick(30000); await f.watcher.refresh();
+  assert.equal(f.watcher.snapshot().roots.find(root => root.id === 'named').title, '名称 named');
+  failure = false; f.query.readTitleSnapshots = readTitles;
+  t.mock.timers.tick(30000); await f.watcher.refresh(); data = f.watcher.snapshot();
+  assert.deepEqual(data.warnings, []);
+});
+
+test('停止后进行中的标题读取不再回写根会话列表', async t => {
+  const f = fixture(t); f.create('other'); f.create('root'); f.start('root');
+  await f.watcher.refresh(); const before = f.watcher.snapshot();
+  let release;
+  f.query.readTitleSnapshots = () => new Promise(resolve => { release = resolve; });
+  const pending = f.watcher.refresh();
+  await new Promise(resolve => setImmediate(resolve));
+  f.watcher.stop();
+  release([{ sessionId: 'other', status: 'fulfilled', value: { session: f.sessions.get('other').session, title: { title: '迟到的名称' } } }]);
+  await pending;
+  assert.deepEqual(f.watcher.snapshot().roots, before.roots);
+  assert.equal(f.watcher.snapshot().revision, before.revision);
 });

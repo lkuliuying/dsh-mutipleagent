@@ -2,10 +2,9 @@
 
 const { EventEmitter } = require('node:events');
 const { createHash } = require('node:crypto');
-const path = require('node:path');
-
 const ROOT_LIMIT = 60;
 const TEAM_LIMIT = 128;
+const TITLE_REFRESH_INTERVAL = 30000;
 const terminal = new Set(['done', 'error', 'interrupted', 'closed']);
 const textOf = content => Array.isArray(content)
   ? content.filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text).join('\n') : '';
@@ -155,7 +154,8 @@ function fold(log, records) {
   const recent = events.sort((a, b) => a.at - b.at).slice(-160);
   agent.reports = agent.reports.slice(-8);
   const keep = new Set([agent.taskEventId, ...agent.reports, ...recent.map(event => event.id)]);
-  return { agent, events: recent, refs: new Map([...refs].filter(([id]) => keep.has(id))) };
+  const title = short(log.events.findLast(event => event.type === 'session/title')?.data?.title);
+  return { agent, title, events: recent, refs: new Map([...refs].filter(([id]) => keep.has(id))) };
 }
 
 class HarnessWatcher extends EventEmitter {
@@ -165,7 +165,7 @@ class HarnessWatcher extends EventEmitter {
       throw new TypeError('HarnessWatcher 需要公开的 sessionQuery 服务');
     }
     this.query = query; this.interval = interval;
-    this.records = new Map(); this.cache = new Map(); this.warnings = []; this.subscriptions = new Map();
+    this.records = new Map(); this.cache = new Map(); this.titles = new Map(); this.warnings = []; this.subscriptions = new Map();
     this.selectedId = null; this.revision = 0; this.epoch = 0;
     this.stopped = false; this.running = false; this.pending = null; this.queued = false; this.signature = '';
   }
@@ -257,19 +257,52 @@ class HarnessWatcher extends EventEmitter {
         }
       }
     }
+    const titles = await this.readTitles(roots, cache);
+    if (this.stopped || epoch !== this.epoch) return;
+    if ([...titles.values()].some(entry => entry.failed)) warnings.push('部分会话标题暂时无法读取，仍可按时间和会话标识选择');
     if (this.selectedId && this.selectedId !== selectedId && roots.some(record => record.header.id === this.selectedId)) {
       this.queued = true;
       return;
     }
-    this.records = records; this.cache = cache; this.selectedId = selectedId; this.warnings = [...new Set(warnings)];
+    this.records = records; this.cache = cache; this.titles = titles; this.selectedId = selectedId; this.warnings = [...new Set(warnings)];
     this.publish();
+  }
+
+  async readTitles(roots, cache) {
+    const now = Date.now(), titles = new Map(), pending = [];
+    for (const { header } of roots) {
+      const previous = this.titles.get(header.id);
+      const entry = previous?.createdAt === header.createdAt ? previous : null;
+      const loaded = cache.get(header.id);
+      if (loaded && Object.hasOwn(loaded, 'title')) {
+        // 团队正文已经读取，直接复用标题事件，保证当前会话重命名及时显示。
+        titles.set(header.id, { title: loaded.title, checkedAt: now, createdAt: header.createdAt });
+      } else {
+        if (entry) titles.set(header.id, entry);
+        if ((!entry || now - entry.checkedAt >= TITLE_REFRESH_INTERVAL) && typeof this.query.readTitleSnapshots === 'function') pending.push(header);
+      }
+    }
+    if (!pending.length) return titles;
+    // 宿主标题投影会读取冷会话；只定期批量查询，避免每秒扫描全部会话正文。
+    let results;
+    try { results = await this.query.readTitleSnapshots(pending.map(header => header.id)); }
+    catch { results = []; }
+    for (const header of pending) {
+      const result = results.find(item => item.sessionId === header.id);
+      const fulfilled = result?.status === 'fulfilled';
+      titles.set(header.id, {
+        title: fulfilled ? short(result.value.title?.title) : titles.get(header.id)?.title || '',
+        createdAt: header.createdAt, checkedAt: now, failed: !fulfilled,
+      });
+    }
+    return titles;
   }
 
   roots() {
     return [...this.records.values()].filter(record => record.header.origin !== 'subagent').slice(0, ROOT_LIMIT).map(({ header }) => {
       const agent = this.cache.get(header.id)?.agent;
-      return { id: header.id, title: agent?.task || path.basename(header.cwd || '') || 'DSH 任务', cwd: header.cwd || '',
-        status: agent?.status || 'unknown', at: agent?.lastEventAt || header.createdAt };
+      return { id: header.id, title: this.titles.get(header.id)?.title || agent?.task || '', cwd: header.cwd || '',
+        createdAt: header.createdAt, status: agent?.status || 'unknown', at: agent?.lastEventAt || header.createdAt };
     });
   }
 

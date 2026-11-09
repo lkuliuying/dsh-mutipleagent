@@ -153,3 +153,85 @@ test('Harness 子路径下接口与事件流保持挂载前缀，会话选择与
     codex.destroy();
   } finally { env.restore(); }
 });
+
+function harnessData(env) {
+  location.href = 'http://127.0.0.1/dsh-mutipleagent/demo.html?mode=live&source=harness';
+  location.search = '?mode=live&source=harness';
+  return { ...env.raw, source: 'harness', rootId: 'root-a', roots: [
+    { id: 'root-a', cwd: 'F:/Projects/Agent', title: '同名会话', createdAt: 2000 },
+    { id: 'root-b', cwd: 'D:/Projects/Agent', title: '同名会话', createdAt: 1000 },
+  ], agents: [{ id: 'root-a' }] };
+}
+
+test('Harness 明确会话优先于目录记忆，失效目录回到当前会话目录', async () => {
+  const env = environment();
+  try {
+    const data = harnessData(env), { LiveSource } = await import('../web/live-source.mjs');
+    env.storage.set('office.harness.live.directory', 'd:/projects/agent');
+    const explicit = new LiveSource('root-a'); explicit.accept(data);
+    assert.equal(explicit.directoryKey, 'f:/projects/agent');
+    assert.equal(env.storage.get('office.harness.live.directory'), 'f:/projects/agent');
+    explicit.destroy();
+    env.storage.set('office.harness.live.directory', 'missing-directory');
+    const restored = new LiveSource(); restored.accept(data);
+    assert.equal(restored.rootId, 'root-a');
+    assert.equal(restored.directoryKey, 'f:/projects/agent');
+    restored.destroy();
+  } finally { env.restore(); }
+});
+
+test('Harness 保存会话失效时恢复该目录内会话，不创建其他目录的过期流', async () => {
+  const env = environment();
+  try {
+    const data = harnessData(env), { LiveSource } = await import('../web/live-source.mjs');
+    env.storage.set('office.harness.live.root', 'deleted-root');
+    env.storage.set('office.harness.live.directory', 'd:/projects/agent');
+    globalThis.fetch = async url => url.includes('deleted-root') ? { ok: false, status: 404, json: async () => ({ error: '会话已删除' }) } :
+      env.response({ ...data, rootId: url.includes('root-b') ? 'root-b' : 'root-a' });
+    const source = new LiveSource(), pending = [], original = source.select.bind(source);
+    source.select = (...args) => { const result = original(...args); pending.push(result); return result; };
+    await source.connect(); await Promise.all(pending);
+    assert.equal(source.rootId, 'root-b');
+    assert.equal(source.directoryKey, 'd:/projects/agent');
+    assert.equal(env.streams.length, 1);
+    assert.match(env.streams[0].url, /root-b/);
+    source.destroy();
+  } finally { env.restore(); }
+});
+
+test('Harness 只跟随所选目录的新会话，跨目录会话选择被拒绝', async () => {
+  const env = environment();
+  try {
+    const data = harnessData(env), { LiveSource } = await import('../web/live-source.mjs');
+    const source = new LiveSource(); source.accept(data);
+    assert.equal(await source.select('root-b'), false);
+    assert.equal(source.rootId, 'root-a');
+    const selections = [];
+    source.select = (id, follow) => selections.push([id, follow]);
+    const other = { id: 'new-b', cwd: 'D:/Projects/Agent' };
+    source.accept({ ...data, roots: [other, ...data.roots] });
+    assert.deepEqual(selections, []);
+    source.accept({ ...data, roots: [other, { id: 'new-a', cwd: 'f:\\projects\\agent\\' }, ...data.roots] });
+    assert.deepEqual(selections, [['new-a', true]]);
+    source.destroy();
+  } finally { env.restore(); }
+});
+
+test('Harness 快速切换目录后旧响应不能覆盖当前目录和会话', async () => {
+  const env = environment();
+  try {
+    const data = harnessData(env), { LiveSource } = await import('../web/live-source.mjs');
+    const source = new LiveSource(); source.accept(data);
+    let finishOld;
+    globalThis.fetch = url => url.includes('root-b') ? new Promise(resolve => { finishOld = resolve; }) : Promise.resolve(env.response(data));
+    const pending = source.selectDirectory('d:/projects/agent');
+    await source.selectDirectory('f:/projects/agent');
+    finishOld(env.response({ ...data, rootId: 'root-b' })); await pending;
+    assert.equal(source.rootId, 'root-a');
+    assert.equal(source.directoryKey, 'f:/projects/agent');
+    assert.equal(env.storage.get('office.harness.live.directory'), 'f:/projects/agent');
+    assert.equal(env.streams.length, 1);
+    assert.match(env.streams[0].url, /root-a/);
+    source.destroy();
+  } finally { env.restore(); }
+});

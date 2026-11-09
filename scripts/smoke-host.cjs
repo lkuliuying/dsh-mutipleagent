@@ -55,8 +55,13 @@ async function checkHost() {
     }
     appendTurn(root, '检查隔离团队', '隔离主 Agent 已汇总结果。');
     appendTurn(child, '检查隔离子任务', report);
+    root.append('session/title', { title: '当前会话标题', messageSeqs: [], source: { kind: 'user' } });
+    const history = ctx.sessions.create('office-smoke-history', {
+      meta: { cwd: path.join(process.cwd(), 'history'), createdAt: root.header.createdAt - 1000 },
+    });
+    history.append('session/title', { title: '历史会话标题', messageSeqs: [], source: { kind: 'user' } });
     assert.equal((await ctx.sessionQuery.readSession(child.id)).events.length, 4);
-    assert.equal((await ctx.sessionQuery.listSessions()).length, 2);
+    assert.equal((await ctx.sessionQuery.listSessions()).length, 3);
 
     plugin = await ctx.plugin(require('../harness.cjs'));
     const base = ctx.webServer.getOrigin() + '/dsh-mutipleagent';
@@ -103,6 +108,10 @@ async function checkHost() {
     assert.equal(snapshot.agents.find(agent => agent.id === child.id)?.parentId, root.id);
     assert.ok(snapshot.agents.every(agent => agent.status === 'done'));
     assert.deepEqual(snapshot.warnings, []);
+    assert.equal(snapshot.roots.find(item => item.id === root.id).title, '当前会话标题');
+    assert.equal(snapshot.roots.find(item => item.id === history.id).title, '历史会话标题');
+    assert.equal(snapshot.roots.find(item => item.id === history.id).createdAt, history.header.createdAt);
+    assert.equal(snapshot.roots.find(item => item.id === history.id).cwd, history.header.cwd);
     const member = snapshot.agents.find(agent => agent.id === child.id);
     assert.ok(member.reportEventId);
     const full = await (await get('/api/report?sessionId=' + encodeURIComponent(child.id) +
@@ -126,12 +135,12 @@ async function checkHost() {
     await plugin.dispose();
     plugin = null;
     assert.equal((await get('/api/health')).status, 404);
-    assert.equal(ctx.sessions.list().length, 2);
+    assert.equal(ctx.sessions.list().length, 3);
     return {
       version: expectedVersion, host: 'passed', syntheticAuth: true,
       checks: ['real-cordis-plugin-load', 'real-session-store-and-query', 'host-origin-and-authentication',
-        'owner-static-assets', 'readonly-methods', 'parent-child-snapshot', 'full-report', 'sse', 'plugin-disposal'],
-      sessions: 2, agents: snapshot.agents.length, reportCharacters: report.length,
+        'owner-static-assets', 'readonly-methods', 'parent-child-snapshot', 'session-title-and-directory-metadata', 'full-report', 'sse', 'plugin-disposal'],
+      sessions: 3, agents: snapshot.agents.length, reportCharacters: report.length,
       modelCalls: 0, profileWrites: 0, realUserSessionReads: 0,
     };
   } finally {

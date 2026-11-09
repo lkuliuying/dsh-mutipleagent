@@ -1,6 +1,7 @@
 import { DemoScene } from './demo-scene.js';
 import { LiveSource } from './live-source.mjs';
 import { applyOfficeBrand, officePage } from './base-url.mjs';
+import { directoryGroups, directorySessions, sessionLabel } from './session-selection.mjs';
 
 export function startLiveOffice() {
   const $ = id => document.getElementById(id);
@@ -24,6 +25,7 @@ export function startLiveOffice() {
   let pendingAnimations = [];
   const agents = () => data.agents.filter(s => history || !s.historical);
   const selected = () => data.agents.find(s => s.id === selectedId) || agents()[0] || empty;
+  const visibleRoots = () => source.kind === 'harness' ? directorySessions(data.roots, source.directoryKey) : data.roots;
   const name = id => data.agents.find(s => s.id === id)?.name || 'Agent ' + (id || '').slice(-8);
   const status = s => labels[s.status] || '未知';
   const matches = s => !query || [s.name, s.task, s.role, s.file, s.id, s.zone].join(' ').toLowerCase().includes(query.toLowerCase());
@@ -69,9 +71,17 @@ export function startLiveOffice() {
       button.onclick = () => { if (s.historical) history = true; $('demo-dialog').close(); select(s.id); };
       content.append(button);
     }
-    content.append(node('strong', '', '主会话'));
-    for (const root of data.roots) {
-      const button = node('button', 'session-choice', root.title || root.id);
+    if (source.kind === 'harness') {
+      const field = node('label', 'session-picker-field'), selector = node('select');
+      field.append(node('span', '', '工作目录'), selector);
+      selector.setAttribute('aria-label', '团队窗口工作目录');
+      fillDirectories(selector);
+      selector.onchange = event => { source.selectDirectory(event.target.value); teamPicker(); };
+      content.append(field);
+    }
+    content.append(node('strong', '', source.kind === 'harness' ? '当前目录的会话' : '主会话'));
+    for (const root of visibleRoots()) {
+      const button = node('button', 'session-choice', source.kind === 'harness' ? sessionLabel(root) : root.title || root.id);
       button.setAttribute('aria-pressed', root.id === data.rootId);
       button.onclick = () => { $('demo-dialog').close(); query = ''; $('task-search').value = ''; search(); source.select(root.id); };
       content.append(button);
@@ -145,14 +155,31 @@ export function startLiveOffice() {
     if (!events.length) $('notification-list').append(node('div', 'empty', '等待真实协作事件。'));
   }
   function renderRoots() {
-    const signature = JSON.stringify([data.rootId, data.roots]);
+    const signature = JSON.stringify([source.kind, source.directoryKey, data.rootId, data.roots]);
     if (signature === rootSignature) return;
     rootSignature = signature;
-    $('scenario').replaceChildren(...data.roots.map(root => {
-      const option = node('option', '', root.title || root.id); option.value = root.id; return option;
+    const harness = source.kind === 'harness';
+    $('directory-field').hidden = !harness;
+    $('directory-field').parentElement.classList.toggle('harness-picker', harness);
+    if (harness) fillDirectories($('workspace-directory'));
+    const roots = visibleRoots();
+    $('scenario').replaceChildren(...roots.map(root => {
+      const option = node('option', '', harness ? sessionLabel(root) : root.title || root.id); option.value = root.id; return option;
     }));
-    if (!data.roots.length) $('scenario').append(node('option', '', '尚未发现 ' + host() + ' 会话'));
+    if (!roots.length) $('scenario').append(node('option', '', '尚未发现 ' + host() + ' 会话'));
     $('scenario').value = data.rootId || '';
+    $('scenario').disabled = !roots.length;
+    $('scenario').title = $('scenario').selectedOptions[0]?.textContent || '';
+  }
+  function fillDirectories(selector) {
+    const groups = directoryGroups(data.roots);
+    selector.replaceChildren(...groups.map(group => {
+      const option = node('option', '', group.path + ' (' + group.count + ')'); option.value = group.key; return option;
+    }));
+    if (!groups.length) selector.append(node('option', '', '尚未发现工作目录'));
+    selector.disabled = !groups.length;
+    selector.value = source.directoryKey ?? '';
+    selector.title = groups.find(group => group.key === source.directoryKey)?.path || '';
   }
   function renderPins() {
     const signature = JSON.stringify(agents().map(s => [s.id, s.name, s.zone]));
@@ -199,12 +226,13 @@ export function startLiveOffice() {
       brandSource = source.kind;
       applyOfficeBrand(source.kind, true);
       $('detail-disclaimer').textContent = '只读真实记录 · 在 ' + host() + ' 中执行任务';
-      $('toggle-play').title = '是否自动跟随新建主会话；不控制 ' + host() + ' 执行';
+      $('toggle-play').title = source.kind === 'harness' ? '只跟随当前工作目录的新会话；不控制任务执行' : '是否自动跟随新建主会话；不控制 Codex 执行';
+      $('team-picker').textContent = source.kind === 'harness' ? '会话 / 团队' : '团队';
     }
     if (data.rootId !== lastRoot) { selectedId = data.rootId; baseline = true; recordToken++; $('demo-dialog').close(); }
     if (!agents().some(s => s.id === selectedId)) selectedId = agents()[0]?.id || null;
     if (baseline) { seen = new Set(data.events.map(e => e.id)); pendingAnimations = []; }
-    $('workspace-name').textContent = data.config.project;
+    $('workspace-name').textContent = source.kind === 'harness' ? '会话' : data.config.project;
     $('workflow-subtitle').textContent = data.config.title + ' · 真实日志'; $('workflow-subtitle').title = data.config.title;
     $('metric-active').textContent = data.active; $('metric-assigned').textContent = data.assigned; $('metric-reports').textContent = data.received;
     $('metric-progress').textContent = data.progress == null ? '—' : data.progress + '%';
@@ -219,7 +247,7 @@ export function startLiveOffice() {
     $('mode-toggle').classList.toggle('disconnected', source.connection !== 'connected');
     $('profile-caption').textContent = source.error || (source.kind === 'harness' ? 'Harness 会话 · 只读观察' : '本机日志 · 只读观察'); $('profile-caption').title = source.error || '约每秒更新，不控制 ' + host() + ' 执行';
     $('source-status').hidden = !source.error && !data.warnings.length; $('source-status').textContent = [source.error, ...data.warnings].filter(Boolean).join('；');
-    $('play-label').textContent = source.follow ? '跟随新会话' : '固定当前会话'; $('toggle-play').setAttribute('aria-label', $('play-label').textContent);
+    $('play-label').textContent = source.follow ? source.kind === 'harness' ? '跟随本目录新会话' : '跟随新会话' : '固定当前会话'; $('toggle-play').setAttribute('aria-label', $('play-label').textContent);
     $('history-toggle').textContent = (history ? '隐藏' : '查看') + '历史成员 (' + data.agents.filter(s => s.historical).length + ')';
     $('stage-track-fill').style.width = (data.complete ? 100 : data.stage / 3 * 100) + '%';
     $('stage-0-description').textContent = data.assigned + ' 项真实子任务';
@@ -264,11 +292,12 @@ export function startLiveOffice() {
     try { await navigator.clipboard.writeText($('dialog-content').textContent); $('copy-demo-report').textContent = '已复制'; }
     catch { toast('复制未完成，请手动选择正文。'); }
   };
-  $('toggle-play').onclick = () => { source.follow = !source.follow; render(); toast(source.follow ? '自动跟随新建主会话；当前会话继续实时更新' : '固定观察当前会话；日志继续实时更新'); };
+  $('toggle-play').onclick = () => { source.follow = !source.follow; render(); toast(source.follow ? source.kind === 'harness' ? '仅跟随当前工作目录的新会话' : '自动跟随新建主会话；当前会话继续实时更新' : '固定观察当前会话；日志继续实时更新'); };
   $('restart-demo').onclick = () => { source.connect(); toast('重新连接只读日志流'); };
   $('reset-demo-camera').onclick = () => scene?.resetCamera();
   $('history-toggle').onclick = () => { history = !history; render({ baseline: true }); };
   $('scenario').onchange = event => { query = ''; $('task-search').value = ''; search(); source.select(event.target.value); };
+  $('workspace-directory').onchange = event => { query = ''; $('task-search').value = ''; search(); source.selectDirectory(event.target.value); };
   $('task-search').oninput = event => { query = event.target.value.trim(); renderQueue(); search(); };
   $('task-search').onfocus = search;
   $('clear-search').onclick = () => { query = ''; $('task-search').value = ''; renderQueue(); search(); $('task-search').focus(); };

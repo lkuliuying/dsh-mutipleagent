@@ -1,5 +1,6 @@
 import { LiveViewAdapter } from './live-state.mjs';
 import { officeSource, officeUrl } from './base-url.mjs';
+import { directoryGroups, directoryKey, directorySessions } from './session-selection.mjs';
 
 // 连接只读快照流；首次加载、切换及重连都建立动画基线。
 export class LiveSource extends EventTarget {
@@ -8,6 +9,8 @@ export class LiveSource extends EventTarget {
     this.adapter = new LiveViewAdapter();
     this.kind = officeSource();
     this.storageKey = this.kind === 'harness' ? 'office.harness.live.root' : 'office.live.root';
+    this.directoryKey = this.kind === 'harness' ? localStorage.getItem('office.harness.live.directory') ?? null : null;
+    this.explicitRootId = rootId || null;
     this.raw = { source: this.kind };
     this.rootId = rootId || localStorage.getItem(this.storageKey) || '';
     this.follow = !rootId;
@@ -77,18 +80,38 @@ export class LiveSource extends EventTarget {
 
   accept(data) {
     if (data.mode && data.mode !== 'live') throw new Error('当前服务使用模拟数据，请以普通模式启动办公室');
-    const newest = data.roots?.[0];
+    if (data.source === 'harness' && this.kind !== 'harness') {
+      this.kind = 'harness';
+      this.storageKey = 'office.harness.live.root';
+      this.directoryKey = localStorage.getItem('office.harness.live.directory') ?? null;
+    }
+    const roots = data.roots || [];
+    let available = roots;
+    if (this.kind === 'harness' && roots.length) {
+      const current = roots.find(root => root.id === data.rootId);
+      const groups = directoryGroups(roots);
+      // 地址中明确指定的会话优先于上次保存的目录；失效目录回到当前会话。
+      if (this.explicitRootId === current?.id || !groups.some(group => group.key === this.directoryKey)) {
+        this.directoryKey = directoryKey((current || roots[0]).cwd);
+      }
+      this.explicitRootId = null;
+      localStorage.setItem('office.harness.live.directory', this.directoryKey);
+      available = directorySessions(roots, this.directoryKey);
+      if (!available.some(root => root.id === data.rootId)) {
+        this.raw = { ...this.raw, roots };
+        this.select(available[0].id, true);
+        return;
+      }
+    }
+    const newest = available[0];
     const newRoot = this.knownRoots.size && newest && !this.knownRoots.has(newest.id);
     for (const root of data.roots || []) this.knownRoots.add(root.id);
     if (this.follow && newRoot && newest.id !== data.rootId) {
+      this.raw = { ...this.raw, roots };
       this.select(newest.id, true);
       return;
     }
     const baseline = this.baseline || data.rootId !== this.raw.rootId || data.agents?.some(agent => agent.loading);
-    if (data.source === 'harness' && this.kind !== 'harness') {
-      this.kind = 'harness';
-      this.storageKey = 'office.harness.live.root';
-    }
     this.raw = { ...data, source: this.kind };
     this.rootId = data.rootId || '';
     if (this.rootId) localStorage.setItem(this.storageKey, this.rootId);
@@ -97,6 +120,13 @@ export class LiveSource extends EventTarget {
   }
 
   select(rootId, keepFollow = false) {
+    if (this.kind === 'harness') {
+      const root = this.raw.roots?.find(root => root.id === rootId);
+      if (!root || this.directoryKey !== null && directoryKey(root.cwd) !== this.directoryKey) return Promise.resolve(false);
+      this.directoryKey = directoryKey(root.cwd);
+      localStorage.setItem('office.harness.live.directory', this.directoryKey);
+    }
+    this.explicitRootId = null;
     if (!keepFollow) this.follow = false;
     this.raw = { source: this.kind, rootId, roots: this.raw.roots || [], agents: [], events: [] };
     this.records.clear();
@@ -104,6 +134,15 @@ export class LiveSource extends EventTarget {
     url.searchParams.set('rootId', rootId);
     history.replaceState(null, '', url);
     return this.connect(rootId);
+  }
+
+  selectDirectory(key) {
+    const roots = directorySessions(this.raw.roots, key);
+    if (!roots.length) return Promise.resolve(false);
+    this.directoryKey = key;
+    localStorage.setItem('office.harness.live.directory', key);
+    const current = roots.find(root => root.id === this.rootId) || roots[0];
+    return this.select(current.id, true);
   }
 
   async record(sessionId, eventId) {

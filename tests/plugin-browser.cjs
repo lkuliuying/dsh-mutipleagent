@@ -6,11 +6,31 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 const { createOfficeServer } = require('../src/server');
 const { DemoWatcher } = require('../src/demo');
+const { CodexWatcher } = require('../src/codex');
 
 // 仅使用内存夹具，验证插件挂载后的真实模式界面，不读取用户会话。
 class HarnessFixture extends DemoWatcher {
-  snapshot(...args) {
-    return { ...super.snapshot(...args), mode: 'live', source: 'harness' };
+  constructor() {
+    super();
+    this.agent(this.rootId).cwd = 'F:\\Projects\\Agent';
+    this.extraRoots = [];
+    this.addRoot('history-main', 'f:/projects/agent/', '接口与回归检查', this.epoch - 86400000);
+    this.addRoot('algorithm-main', 'F:\\Projects\\Algorithm', '接口与回归检查', this.epoch - 172800000);
+    this.addRoot('another-algorithm', 'G:\\Archive\\Algorithm', '接口与回归检查', this.epoch - 259200000);
+    this.addRoot('no-directory-main', '', '', this.epoch - 345600000);
+  }
+  addRoot(id, cwd, title, createdAt = Date.now() + 60000) {
+    const agent = this.agent(id);
+    agent.cwd = cwd; agent.task = title; agent.relationship = 'root'; agent.status = 'idle';
+    this.extraRoots.unshift({ id, cwd, title, createdAt, at: createdAt, status: 'idle' });
+    this.emit('change');
+  }
+  roots() {
+    const current = { ...super.roots()[0], cwd: this.agent(this.rootId).cwd, title: '接口与回归检查', createdAt: this.epoch };
+    return [current, ...(this.extraRoots || [])].sort((a, b) => b.createdAt - a.createdAt);
+  }
+  snapshot(rootId) {
+    return { ...CodexWatcher.prototype.snapshot.call(this, rootId), mode: 'live', source: 'harness' };
   }
 }
 
@@ -60,6 +80,23 @@ class HarnessFixture extends DemoWatcher {
     assert.equal((await frame.locator('.brand').innerText()).replace(/\s/g, ''), 'DSHOffice');
     assert.equal(await frame.locator('#metric-assigned').innerText(), '2');
     assert.equal(await frame.locator('.scene-pin').count(), 3);
+    assert.equal(await frame.locator('#workspace-directory').isVisible(), true);
+    const directories = await frame.locator('#workspace-directory option').evaluateAll(options => options.map(option => ({ value: option.value, text: option.textContent })));
+    assert.equal(directories.length, 4, '同一 Windows 目录的大小写和分隔符变化应合并');
+    const agentDirectory = directories.find(option => /F:\\Projects\\Agent/i.test(option.text));
+    const algorithmDirectory = directories.find(option => option.text.includes('F:\\Projects\\Algorithm'));
+    const archivedDirectory = directories.find(option => option.text.includes('G:\\Archive\\Algorithm'));
+    assert.ok(agentDirectory && algorithmDirectory && archivedDirectory, '同名目录应展示完整路径以区分');
+    assert.ok(directories.some(option => option.text.includes('未记录')));
+    assert.equal(await frame.locator('#workspace-directory').inputValue(), agentDirectory.value);
+    const sessions = await frame.locator('#scenario option').evaluateAll(options => options.map(option => ({ value: option.value, text: option.textContent })));
+    assert.deepEqual(new Set(sessions.map(option => option.value)), new Set(['demo-main', 'history-main']));
+    assert.equal(new Set(sessions.map(option => option.text)).size, 2, '同名会话应显示不同的时间与短 ID');
+    for (const option of sessions) {
+      assert.ok(option.text.includes('接口与回归检查'));
+      assert.ok(option.text.includes(option.value.slice(-8)));
+      assert.match(option.text, /\d{4}/, '会话选项应包含日期');
+    }
     assert.equal(await frame.locator('.office-gl').count(), 1);
     assert.ok(await frame.evaluate(() => {
       const gl = document.querySelector('.office-gl').getContext('webgl2');
@@ -87,7 +124,35 @@ class HarnessFixture extends DemoWatcher {
       const fill = document.getElementById('detail-progress-fill');
       return Math.abs(fill.getBoundingClientRect().width - fill.parentElement.getBoundingClientRect().width) < 1;
     });
-    await page.screenshot({ path: path.join(out, 'plugin-desktop.png'), fullPage: true });
+    await page.screenshot({ path: path.join(out, 'directory-sessions-desktop.png'), fullPage: true });
+
+    await frame.locator('#scenario').selectOption('history-main');
+    await frame.waitForFunction(() => document.getElementById('detail-code').textContent.endsWith('ory-main'));
+    await frame.locator('#workspace-directory').selectOption(algorithmDirectory.value);
+    await frame.waitForFunction(() => document.getElementById('scenario').value === 'algorithm-main');
+    assert.deepEqual(await frame.locator('#scenario option').evaluateAll(options => options.map(option => option.value)), ['algorithm-main']);
+    await frame.locator('#team-picker').click();
+    assert.equal(await frame.locator('#dialog-content .session-choice').count(), 2, '团队弹窗仅列出本目录的成员和会话');
+    assert.equal(await frame.locator('#dialog-content select').inputValue(), algorithmDirectory.value);
+    await frame.locator('#close-demo-dialog').click();
+    const explicitSessionUrl = frame.url();
+    assert.equal(new URL(explicitSessionUrl).searchParams.get('rootId'), 'algorithm-main');
+    await frame.evaluate(() => localStorage.setItem('office.harness.live.directory', 'g:/archive/algorithm'));
+    await frame.goto(explicitSessionUrl);
+    await frame.waitForFunction(() => document.body.dataset.demoReady === 'true' && document.getElementById('scenario').value === 'algorithm-main');
+    assert.equal(await frame.locator('#workspace-directory').inputValue(), algorithmDirectory.value, '显式 rootId 地址优先于旧的目录记忆');
+    await frame.locator('#workspace-directory').selectOption(agentDirectory.value);
+    await frame.waitForFunction(() => document.getElementById('scenario').value === 'demo-main');
+    if ((await frame.locator('#play-label').innerText()).includes('固定')) await frame.locator('#toggle-play').click();
+    const oldArchivedLabel = await frame.locator('#workspace-directory option').evaluateAll((options, key) => options.find(option => option.value === key).textContent, archivedDirectory.value);
+    watcher.addRoot('new-other-directory', 'G:\\Archive\\Algorithm', '其他目录的新会话');
+    await frame.waitForFunction(([key, previous]) => [...document.getElementById('workspace-directory').options].find(option => option.value === key)?.textContent !== previous,
+      [archivedDirectory.value, oldArchivedLabel]);
+    assert.equal(await frame.locator('#scenario').inputValue(), 'demo-main', '跟随不能被其他目录的新会话抢走');
+    assert.equal(await frame.locator('#workspace-directory').inputValue(), agentDirectory.value);
+    watcher.addRoot('new-same-directory', 'F:\\Projects\\Agent', '本目录的新会话');
+    await frame.waitForFunction(() => document.getElementById('scenario').value === 'new-same-directory');
+    assert.equal(await frame.locator('#workspace-directory').inputValue(), agentDirectory.value);
 
     await Promise.all([frame.waitForURL(url => url.searchParams.get('mode') !== 'live'), frame.locator('#mode-toggle').click()]);
     await frame.waitForFunction(() => document.body.dataset.demoReady === 'true');
@@ -108,24 +173,27 @@ class HarnessFixture extends DemoWatcher {
     assert.equal(await frame.locator('#agent-details').isHidden(), true);
     assert.equal(await frame.locator('#open-details').isVisible(), true);
     assert.equal(await frame.locator('#team-picker').isVisible(), true);
+    assert.equal(await frame.locator('#workspace-directory').isVisible(), true);
+    assert.equal(await frame.locator('#scenario').isVisible(), true);
     assert.ok(await frame.evaluate(() => {
       const within = selector => {
         const rect = document.querySelector(selector).getBoundingClientRect();
         return rect.width > 0 && rect.height > 0 && rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight;
       };
-      return document.documentElement.scrollWidth <= innerWidth && within('.nav') && within('.stats') && within('#workflow-dock') && within('.scene-tools');
+      return document.documentElement.scrollWidth <= innerWidth && within('.nav') && within('.stats') && within('#workflow-dock') && within('.scene-tools') && within('#workspace-directory') && within('#scenario');
     }), '紧凑窗口的主要控件应位于视口内');
     await frame.locator('#open-details').click();
     assert.equal(await frame.locator('#agent-details').isVisible(), true);
     await frame.locator('#close-details').click();
-    await page.screenshot({ path: path.join(out, 'plugin-compact.png'), fullPage: true });
+    await page.screenshot({ path: path.join(out, 'directory-sessions-compact.png'), fullPage: true });
     assert.deepEqual(errors, []);
     assert.deepEqual(failedResponses, []);
     const result = { ok: true, browser: 'Google Chrome', data: 'isolated in-memory fixture', webgl: true,
       checks: ['同源 sandbox iframe', 'HttpOnly 身份校验及未登录 401', 'DSH 品牌', '真实模式团队与 SSE 更新',
-        '子路径 GLB 模型', '搜索选择成员', '完整汇报全文', '模拟与真实切换保留来源', '1500x1000 与 900x720 布局'],
+        '子路径 GLB 模型', '搜索选择成员', '完整汇报全文', '工作目录与会话两级选择', '同名目录完整路径与同名会话时间/ID',
+        '团队弹窗目录筛选', '地址 rootId 优先于目录记忆', '只跟随本目录的新会话', '模拟与真实切换保留来源', '1500x1000 与 900x720 布局'],
       pageErrors: errors, failedResponses, modelCalls: 0, profileWrites: 0 };
-    fs.writeFileSync(path.join(out, 'plugin-browser-result.json'), JSON.stringify(result, null, 2));
+    fs.writeFileSync(path.join(out, 'directory-sessions-browser-result.json'), JSON.stringify(result, null, 2));
     console.log(JSON.stringify(result, null, 2));
   } finally {
     if (browser) await browser.close();
