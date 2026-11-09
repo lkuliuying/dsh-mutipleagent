@@ -126,7 +126,7 @@ class HarnessFixture extends DemoWatcher {
     const base = 'http://127.0.0.1:' + server.address().port;
     assert.equal((await fetch(base + mount + 'api/sessions')).status, 401);
     browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-swiftshader'] });
-    const context = await browser.newContext({ viewport: { width: 1500, height: 1000 }, deviceScaleFactor: 1 });
+    const context = await browser.newContext({ viewport: { width: 1500, height: 1000 }, deviceScaleFactor: 1, locale: 'zh-CN' });
     const page = await context.newPage();
     const errors = [],
       failedResponses = [],
@@ -500,7 +500,7 @@ class HarnessFixture extends DemoWatcher {
     await frame.locator('#close-demo-dialog').click();
     assert.ok(await frame.evaluate(() => document.documentElement.scrollWidth <= innerWidth), '手机窗口不能出现横向页面滚动');
 
-    const touchContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const touchContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, locale: 'zh-CN' });
     const touchPage = await touchContext.newPage();
     touchPage.on('pageerror', error => errors.push(error.message));
     await touchContext.addCookies([{ name: 'fixture-owner', value: '1', url: base, httpOnly: true, sameSite: 'Strict' }]);

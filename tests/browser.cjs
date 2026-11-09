@@ -18,7 +18,7 @@ const { fixture, IDS } = require('./helpers.cjs');
   const cleanups = [];
   try {
     browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-swiftshader'] });
-    const page = await browser.newPage({ viewport: { width: 1500, height: 1000 }, deviceScaleFactor: 1 });
+    const page = await browser.newPage({ viewport: { width: 1500, height: 1000 }, deviceScaleFactor: 1, locale: 'zh-CN' });
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     page.on('console', message => {
@@ -70,7 +70,7 @@ const { fixture, IDS } = require('./helpers.cjs');
     await page.setViewportSize({ width: 1100, height: 900 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await page.screenshot({ path: path.join(out, 'office-1100.png'), fullPage: true });
-    const fallback = await browser.newContext({ viewport: { width: 1100, height: 800 } });
+    const fallback = await browser.newContext({ viewport: { width: 1100, height: 800 }, locale: 'zh-CN' });
     await fallback.addInitScript(() => {
       const original = HTMLCanvasElement.prototype.getContext;
       HTMLCanvasElement.prototype.getContext = function (type, ...args) {
@@ -106,7 +106,7 @@ const { fixture, IDS } = require('./helpers.cjs');
     await new Promise(resolve => multi.listen(0, '127.0.0.1', resolve));
     cleanups.push(() => multi.closeOffice());
     const multiBase = 'http://127.0.0.1:' + multi.address().port;
-    const switchPage = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    const switchPage = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'zh-CN' });
     await switchPage.goto(multiBase);
     await switchPage.waitForSelector('.agent-card');
     await switchPage.locator('#task-select').selectOption(IDS.main);

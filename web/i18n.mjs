@@ -1046,7 +1046,11 @@ function detectLang() {
   } catch {
     /* 无存储权限时按浏览器语言判断 */
   }
-  const tag = typeof navigator !== 'undefined' && typeof navigator.language === 'string' ? navigator.language : '';
+  // 只有浏览器里才按 navigator.language 猜语言；Node（单测、预渲染）没有 window，
+  // 而 Node 21+ 自带 navigator.language（跟随系统 LANG），据此判断会让同一份代码
+  // 在 CI 的 Linux 机器上默认变成英文，所以这里必须再要求 window 存在。
+  const inBrowser = typeof window !== 'undefined';
+  const tag = inBrowser && typeof navigator !== 'undefined' && typeof navigator.language === 'string' ? navigator.language : '';
   if (!tag) return 'zh';
   return tag.toLowerCase().split('-')[0] === 'zh' ? 'zh' : 'en';
 }
@@ -1133,7 +1137,9 @@ export function setLang(next) {
     /* 无法持久化时仍在本页生效 */
   }
   applyStatic();
-  for (const el of document.querySelectorAll('button[data-lang]')) el.setAttribute('aria-pressed', String(el.dataset.lang === value));
+  if (typeof document !== 'undefined') {
+    for (const el of document.querySelectorAll('button[data-lang]')) el.setAttribute('aria-pressed', String(el.dataset.lang === value));
+  }
   if (!changed) return value;
   for (const cb of [...listeners]) {
     try {
