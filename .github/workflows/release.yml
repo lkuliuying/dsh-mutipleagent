@@ -11,6 +11,8 @@ on:
 
 permissions:
   contents: write
+  # npm publish --provenance 需要 OIDC 令牌；未配置 NPM_TOKEN 时这一步会跳过。
+  id-token: write
 
 jobs:
   publish:
