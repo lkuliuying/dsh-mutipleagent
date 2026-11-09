@@ -14,7 +14,7 @@
     "./package.json": "./package.json",
     "./icon": "./assets/agents/dsh.svg"
   },
-  "files": ["harness.cjs", "client.js", "cordis.patch.yml", "src", "public", "assets", "vendor/licenses", "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md"],
+  "files": ["harness.cjs", "client.js", "cordis.patch.yml", "src", "public", "assets", "vendor/licenses", "LICENSE", "README.md", "CHANGELOG.md", "THIRD_PARTY_NOTICES.md"],
   "repository": { "type": "git", "url": "https://github.com/lkuliuying/dsh-mutipleagent.git" },
   "homepage": "https://github.com/lkuliuying/dsh-mutipleagent",
   "bugs": { "url": "https://github.com/lkuliuying/dsh-mutipleagent/issues" },

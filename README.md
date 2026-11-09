@@ -4,6 +4,8 @@ DeepSeek Harness 多 Agent 3D 协作办公室插件。安装后从 Harness 侧�
 
 当前版本为 `v0.1.3`，包名为 `dsh-mutipleagent`，仓库地址为 [lkuliuying/dsh-mutipleagent](https://github.com/lkuliuying/dsh-mutipleagent)。当前兼容目标是 Harness `0.2.2-rc.1`，需要 Node.js `^22.19.0 || >=24.0.0`。
 
+各版本变化见 [CHANGELOG.md](CHANGELOG.md)，发布说明见 [GitHub Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases)。
+
 ## v0.1.3 更新
 
 - 3D 办公室：角色入座、面向显示器并敲键盘/动鼠标；屏幕显示当前状态与最近事件；主/子 Agent 之间的任务和汇报以“屏幕到屏幕”的光点流线呈现。
@@ -15,6 +17,8 @@ DeepSeek Harness 多 Agent 3D 协作办公室插件。安装后从 Harness 侧�
 - 搜索支持跨目录会话标题，选中后自动切换目录并清理查询；修复跨目录打开时的假错误提示、390px 搜索结果被遮挡等问题。
 
 验证：76 项单元测试、25 项浏览器验收、Harness `0.2.2-rc.1` 实际 SDK 的隔离加载检查通过。
+
+更早版本（v0.1、v0.1.1、v0.1.2）的变化见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装到 Harness
 
