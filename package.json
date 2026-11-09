@@ -1,11 +1,14 @@
 {
   "name": "dsh-mutipleagent",
   "displayName": "DSH 多 Agent 办公室",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "DeepSeek Harness 多 Agent 3D 协作办公室插件：在 3D 场景中观察真实主会话、子 Agent、工具活动与汇报，支持目录/会话切换和跨目录搜索。",
   "license": "MIT",
   "icon": "./assets/agents/dsh.svg",
-  "engines": { "node": "^22.19.0 || >=24.0.0", "dsh": "0.2.2-rc.1" },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": "^0.2.2-rc.1"
+  },
   "main": "harness.cjs",
   "exports": {
     ".": "./harness.cjs",
@@ -14,30 +17,74 @@
     "./package.json": "./package.json",
     "./icon": "./assets/agents/dsh.svg"
   },
-  "files": ["harness.cjs", "client.js", "cordis.patch.yml", "src", "public", "assets", "vendor/licenses", "LICENSE", "README.md", "CHANGELOG.md", "THIRD_PARTY_NOTICES.md"],
-  "repository": { "type": "git", "url": "https://github.com/lkuliuying/dsh-mutipleagent.git" },
+  "files": [
+    "harness.cjs",
+    "client.js",
+    "cordis.patch.yml",
+    "src",
+    "public",
+    "assets",
+    "!assets/screenshots",
+    "vendor/licenses",
+    "LICENSE",
+    "README.md",
+    "README.en.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "screenshots.json",
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lkuliuying/dsh-mutipleagent.git"
+  },
   "homepage": "https://github.com/lkuliuying/dsh-mutipleagent",
-  "bugs": { "url": "https://github.com/lkuliuying/dsh-mutipleagent/issues" },
-  "keywords": ["dsh-plugin", "deepseek-harness", "multi-agent", "3d-office"],
+  "bugs": {
+    "url": "https://github.com/lkuliuying/dsh-mutipleagent/issues"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "multi-agent",
+    "3d-office"
+  ],
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web",
-      "inject": ["@deepseek-ai/dsh-client-ui-layout", "@deepseek-ai/dsh-client-ui-sidebar"]
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
     }
   },
   "scripts": {
-    "start": "node src/server.js",
-    "demo": "node src/server.js --demo",
-    "build": "esbuild web/app.js web/demo.js --bundle --format=esm --minify --target=es2020 --outdir=public --legal-comments=eof",
+    "start": "node src/server.js --open",
+    "demo": "node src/server.js --demo --open",
+    "build": "node scripts/build.mjs",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{js,cjs,mjs,yml}\"",
+    "format:check": "prettier --check \"**/*.{js,cjs,mjs,yml}\"",
+    "check:compat": "node scripts/check-compat.mjs",
     "test": "node --test tests/*.test.js",
     "test:ui": "node tests/browser.cjs",
     "test:plugin:ui": "node tests/plugin-browser.cjs",
-    "smoke:host": "node scripts/smoke-host.cjs"
+    "smoke:host": "node scripts/smoke-host.cjs",
+    "release": "node scripts/release.mjs",
+    "screenshots": "node scripts/screenshots.mjs",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=85 --test-coverage-functions=80 --test-coverage-branches=75 tests/*.test.js"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "esbuild": "^0.25.12",
+    "eslint": "^9.39.4",
+    "globals": "^15.15.0",
     "playwright": "^1.62.1",
+    "prettier": "^3.9.10",
+    "semver": "^7.8.6",
     "three": "^0.186.1"
   }
 }

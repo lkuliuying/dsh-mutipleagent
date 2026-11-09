@@ -1,3 +1,5 @@
+import { t } from './i18n.mjs';
+
 const ACTIVE_STATUSES = new Set(['thinking', 'tool', 'typing', 'waiting', 'waiting_agents']);
 const TERMINAL_STATUSES = new Set(['done', 'error', 'interrupted', 'closed']);
 
@@ -7,7 +9,12 @@ function short(value, length = 68) {
 }
 
 function basename(value) {
-  return typeof value === 'string' ? value.replace(/[\\/]+$/, '').split(/[\\/]/).pop() : '';
+  return typeof value === 'string'
+    ? value
+        .replace(/[\\/]+$/, '')
+        .split(/[\\/]/)
+        .pop()
+    : '';
 }
 
 function code(id, prefix) {
@@ -15,20 +22,31 @@ function code(id, prefix) {
 }
 
 function reportPreview(agent, hasReport, historical) {
-  if (hasReport) return '汇报已就绪';
-  if (agent.reportEventId) return historical ? '历史汇报已记录' : '等待本轮汇报，已有历史记录';
+  if (hasReport) return t('live.reportReady');
+  if (agent.reportEventId) return historical ? t('live.reportHistorical') : t('live.reportPending');
   switch (agent.status) {
-    case 'done': return '任务已结束，日志未记录汇报';
-    case 'error': return '执行出错';
-    case 'interrupted': return '任务已中断';
-    case 'closed': return 'Agent 已关闭';
-    case 'waiting': return short(agent.activity) || '等待用户处理';
-    case 'waiting_agents': return '等待子 Agent 汇报';
-    case 'typing': return '正在输出消息';
-    case 'tool': return short(agent.activity) || '正在执行工具';
-    case 'thinking': return '正在处理任务';
-    case 'idle': return '空闲';
-    default: return '等待日志';
+    case 'done':
+      return t('live.endedNoReport');
+    case 'error':
+      return t('live.errored');
+    case 'interrupted':
+      return t('live.interrupted');
+    case 'closed':
+      return t('live.agentClosed');
+    case 'waiting':
+      return short(agent.activity) || t('live.waitingUser');
+    case 'waiting_agents':
+      return t('live.awaitingSubagents');
+    case 'typing':
+      return t('live.typingMessage');
+    case 'tool':
+      return short(agent.activity) || t('live.runningTool');
+    case 'thinking':
+      return t('live.thinking');
+    case 'idle':
+      return t('live.idle');
+    default:
+      return t('live.awaitingLog');
   }
 }
 
@@ -45,20 +63,19 @@ function isHistorical(agent, root, events) {
   const times = [agent.lastEventAt, agent.endedAt].filter(Number.isFinite);
   if (!times.length || Math.max(...times) >= root.turnStartedAt) return false;
   const related = events.concat(Array.isArray(agent.events) ? agent.events : []);
-  return !related.some(event => event.targetId === agent.id &&
-    (event.type === 'assign' || event.type === 'message') && event.at >= root.turnStartedAt);
+  return !related.some(event => event.targetId === agent.id && (event.type === 'assign' || event.type === 'message') && event.at >= root.turnStartedAt);
 }
 
 function hasCurrentReport(agent, root, events) {
   if (!agent.reportEventId) return false;
   const related = events.concat(Array.isArray(agent.events) ? agent.events : []);
   const report = related.find(event => event.id === agent.reportEventId && event.type === 'report');
-  const instructions = related.filter(event => agent.id !== root?.id && event.targetId === agent.id &&
-    (event.type === 'assign' || event.type === 'message') && Number.isFinite(event.at));
+  const instructions = related.filter(
+    event => agent.id !== root?.id && event.targetId === agent.id && (event.type === 'assign' || event.type === 'message') && Number.isFinite(event.at),
+  );
   const boundaries = [root?.turnStartedAt, agent.turnStartedAt, ...instructions.map(event => event.at)].filter(Number.isFinite);
   // 追加指令可能先到父日志；此时子日志仍保留上轮的终态和报告 ID。
-  const reportAt = Number.isFinite(report?.at) ? report.at :
-    Number.isFinite(agent.endedAt) ? agent.endedAt : agent.lastEventAt;
+  const reportAt = Number.isFinite(report?.at) ? report.at : Number.isFinite(agent.endedAt) ? agent.endedAt : agent.lastEventAt;
   return !Number.isFinite(reportAt) || !boundaries.length || reportAt >= Math.max(...boundaries);
 }
 
@@ -84,49 +101,52 @@ export class LiveViewAdapter {
     const events = Array.isArray(rawSnapshot.events) ? rawSnapshot.events : [];
     const root = rawAgents.find(agent => agent.id === rootId);
     const rootEntry = roots.find(entry => entry.id === rootId);
-    const agents = rawAgents.map(agent => {
-      const isRoot = agent.id === rootId;
-      if (!this.slots.has(agent.id)) this.slots.set(agent.id, this.nextSlot++);
-      const slot = this.slots.get(agent.id);
-      const name = agent.name || (isRoot ? '主 Agent' : '子 Agent ' + String(agent.id).slice(-8));
-      const historical = !isRoot && isHistorical(agent, root, events);
-      const currentHasReport = hasCurrentReport(agent, root, events);
-      return {
-        ...agent,
-        agent: agent.agent || (rawSnapshot.source === 'harness' ? 'dsh' : 'codex'),
-        source: agent,
-        slot,
-        historical,
-        name,
-        title: short(agent.task || (isRoot && rootEntry?.title) || agent.role || name),
-        role: agent.role || (isRoot ? '协调与汇总' : '子 Agent'),
-        zone: isRoot ? 'C0 · 协调中心' : 'A' + slot + ' · 协作工位',
-        icon: icon(agent, isRoot),
-        file: short(agent.activity || agent.model) || '日志未记录',
-        code: code(agent.id, 'AGENT'),
-        progress: agent.status === 'done' ? 100 : null,
-        report: null,
-        hasReport: currentHasReport,
-        currentHasReport,
-        reportPreview: reportPreview(agent, currentHasReport, historical)
-      };
-    }).sort((a, b) => a.slot - b.slot);
+    const agents = rawAgents
+      .map(agent => {
+        const isRoot = agent.id === rootId;
+        if (!this.slots.has(agent.id)) this.slots.set(agent.id, this.nextSlot++);
+        const slot = this.slots.get(agent.id);
+        const name = agent.name || (isRoot ? t('live.leadName') : t('live.subName', { id: String(agent.id).slice(-8) }));
+        const historical = !isRoot && isHistorical(agent, root, events);
+        const currentHasReport = hasCurrentReport(agent, root, events);
+        return {
+          ...agent,
+          agent: agent.agent || (rawSnapshot.source === 'harness' ? 'dsh' : 'codex'),
+          source: agent,
+          slot,
+          historical,
+          name,
+          title: short(agent.task || (isRoot && rootEntry?.title) || agent.role || name),
+          role: agent.role || (isRoot ? t('app.roleLead') : t('app.roleSubAgent')),
+          zone: isRoot ? t('live.zoneLead') : t('live.zoneSlot', { slot }),
+          icon: icon(agent, isRoot),
+          file: short(agent.activity || agent.model) || t('common.notRecorded'),
+          code: code(agent.id, 'AGENT'),
+          progress: agent.status === 'done' ? 100 : null,
+          report: null,
+          hasReport: currentHasReport,
+          currentHasReport,
+          reportPreview: reportPreview(agent, currentHasReport, historical),
+        };
+      })
+      .sort((a, b) => a.slot - b.slot);
 
     const children = agents.filter(agent => agent.id !== rootId && agent.parentId && !agent.historical);
     const received = children.filter(agent => agent.hasReport).length;
     const complete = root?.status === 'done';
     let stage = children.length ? 1 : 0;
     if (received) stage = 2;
-    if (complete || agents.find(agent => agent.id === rootId)?.hasReport || (
-      root?.status === 'typing' && children.length > 0 &&
-      children.every(agent => TERMINAL_STATUSES.has(agent.status))
-    )) stage = 3;
+    if (
+      complete ||
+      agents.find(agent => agent.id === rootId)?.hasReport ||
+      (root?.status === 'typing' && children.length > 0 && children.every(agent => TERMINAL_STATUSES.has(agent.status)))
+    )
+      stage = 3;
 
     const elapsedKnown = Number.isFinite(root?.turnStartedAt);
     let end = now;
     if (TERMINAL_STATUSES.has(root?.status)) {
-      end = Number.isFinite(root.endedAt) ? root.endedAt :
-        Number.isFinite(root.lastEventAt) ? root.lastEventAt : now;
+      end = Number.isFinite(root.endedAt) ? root.endedAt : Number.isFinite(root.lastEventAt) ? root.lastEventAt : now;
     }
     const seconds = elapsedKnown ? Math.max(0, Math.floor((end - root.turnStartedAt) / 1000)) : 0;
 
@@ -136,9 +156,9 @@ export class LiveViewAdapter {
       rootId,
       scenario: rootId,
       config: {
-        title: short(root?.task || rootEntry?.title || root?.name) || (rawSnapshot.source === 'harness' ? 'Harness 会话' : 'Codex 会话'),
-        project: basename(root?.cwd || rootEntry?.cwd) || (rawSnapshot.source === 'harness' ? 'DeepSeek Harness' : 'Codex'),
-        code: code(rootId, 'SESSION')
+        title: short(root?.task || rootEntry?.title || root?.name) || (rawSnapshot.source === 'harness' ? t('live.harnessSession') : t('live.codexSession')),
+        project: basename(root?.cwd || rootEntry?.cwd) || (rawSnapshot.source === 'harness' ? t('live.harnessName') : t('live.codexName')),
+        code: code(rootId, 'SESSION'),
       },
       seconds,
       elapsedKnown,
@@ -151,7 +171,7 @@ export class LiveViewAdapter {
       received,
       active: agents.filter(agent => ACTIVE_STATUSES.has(agent.status)).length,
       progress: complete ? 100 : null,
-      complete
+      complete,
     };
   }
 }

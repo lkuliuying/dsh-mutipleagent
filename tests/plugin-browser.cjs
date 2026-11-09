@@ -10,7 +10,8 @@ const { CodexWatcher } = require('../src/codex');
 
 async function openPicker(frame, id, touch = false, filterable = true) {
   const trigger = frame.locator('#' + id + '-trigger');
-  if (touch) await trigger.tap(); else await trigger.click();
+  if (touch) await trigger.tap();
+  else await trigger.click();
   const panel = frame.locator('#' + id + '-popover');
   await panel.waitFor({ state: 'visible' });
   await panel.evaluate(element => Promise.all(element.getAnimations({ subtree: true }).map(animation => animation.finished)));
@@ -33,11 +34,21 @@ async function choosePicker(frame, id, value, query = '', filterable = true) {
 }
 
 async function assertPanelWithinViewport(panel) {
-  assert.ok(await panel.evaluate(element => {
-    const bounds = element.getBoundingClientRect();
-    return bounds.width > 0 && bounds.height > 0 && bounds.left >= 0 && bounds.right <= innerWidth + 1 &&
-      bounds.top >= 0 && bounds.bottom <= innerHeight + 1 && element.scrollWidth <= element.clientWidth + 1;
-  }), '下拉面板应在视口内，长内容不能造成横向溢出');
+  assert.ok(
+    await panel.evaluate(element => {
+      const bounds = element.getBoundingClientRect();
+      return (
+        bounds.width > 0 &&
+        bounds.height > 0 &&
+        bounds.left >= 0 &&
+        bounds.right <= innerWidth + 1 &&
+        bounds.top >= 0 &&
+        bounds.bottom <= innerHeight + 1 &&
+        element.scrollWidth <= element.clientWidth + 1
+      );
+    }),
+    '下拉面板应在视口内，长内容不能造成横向溢出',
+  );
 }
 
 // 仅使用内存夹具，验证插件挂载后的真实模式界面，不读取用户会话。
@@ -53,7 +64,10 @@ class HarnessFixture extends DemoWatcher {
   }
   addRoot(id, cwd, title, createdAt = Date.now() + 60000) {
     const agent = this.agent(id);
-    agent.cwd = cwd; agent.task = title; agent.relationship = 'root'; agent.status = 'idle';
+    agent.cwd = cwd;
+    agent.task = title;
+    agent.relationship = 'root';
+    agent.status = 'idle';
     this.extraRoots.unshift({ id, cwd, title, createdAt, at: createdAt, status: 'idle' });
     this.emit('change');
   }
@@ -72,31 +86,51 @@ class HarnessFixture extends DemoWatcher {
   const watcher = new HarnessFixture();
   const fullReport = '接口检查完成。\n' + '逐项核对金额精度、幂等键和库存错误响应。\n'.repeat(120) + '完整报告结束标记';
   watcher.plan[10][2].last_agent_message = fullReport;
-  const office = createOfficeServer({ watcher, basePath: mount.slice(0, -1), defaultDocument: 'demo.html',
-    authorize: req => req.headers.cookie === cookie ? undefined : 401 });
+  const office = createOfficeServer({
+    watcher,
+    basePath: mount.slice(0, -1),
+    defaultDocument: 'demo.html',
+    authorize: req => (req.headers.cookie === cookie ? undefined : 401),
+  });
   // 同源父页面模拟 Harness 主面板；子页面仍经过实际服务的身份与 CSP 检查。
   const server = http.createServer((req, res) => {
     if (req.url.startsWith(mount)) return office.emit('request', req, res);
-    if (req.url === '/favicon.ico') { res.writeHead(204); res.end(); return; }
-    if (req.url !== '/') { res.writeHead(404); res.end(); return; }
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8',
-      'set-cookie': cookie + '; HttpOnly; SameSite=Strict; Path=/' });
-    res.end('<!doctype html><html lang="zh-CN"><head><title>Harness 插件验证</title>' +
-      '<style>html,body{height:100%;margin:0}iframe{display:block;border:0;width:100%;height:100%}</style></head><body>' +
-      '<iframe id="office-frame" name="office-frame" title="DSH 协作办公室" sandbox="allow-scripts allow-same-origin" ' +
-      'src="' + mount + '?mode=live&amp;source=harness"></iframe></body></html>');
+    if (req.url === '/favicon.ico') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    if (req.url !== '/') {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'set-cookie': cookie + '; HttpOnly; SameSite=Strict; Path=/' });
+    res.end(
+      '<!doctype html><html lang="zh-CN"><head><title>Harness 插件验证</title>' +
+        '<style>html,body{height:100%;margin:0}iframe{display:block;border:0;width:100%;height:100%}</style></head><body>' +
+        '<iframe id="office-frame" name="office-frame" title="DSH 协作办公室" sandbox="allow-scripts allow-same-origin" ' +
+        'src="' +
+        mount +
+        '?mode=live&amp;source=harness"></iframe></body></html>',
+    );
   });
   const out = path.resolve(__dirname, '../.verification');
   fs.mkdirSync(out, { recursive: true });
   let browser;
   try {
-    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
     const base = 'http://127.0.0.1:' + server.address().port;
     assert.equal((await fetch(base + mount + 'api/sessions')).status, 401);
     browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-swiftshader'] });
     const context = await browser.newContext({ viewport: { width: 1500, height: 1000 }, deviceScaleFactor: 1 });
     const page = await context.newPage();
-    const errors = [], failedResponses = [], glbResponses = new Set();
+    const errors = [],
+      failedResponses = [],
+      glbResponses = new Set();
     page.on('pageerror', error => errors.push(error.message));
     page.on('response', response => {
       const url = new URL(response.url());
@@ -121,14 +155,19 @@ class HarnessFixture extends DemoWatcher {
     assert.equal(await frame.locator('.scene-pin').count(), 3);
     assert.equal(await frame.locator('#workspace-directory-trigger').isVisible(), true);
     let panel = await openPicker(frame, 'workspace-directory');
-    const directories = await panel.locator('[role="option"]').evaluateAll(options => options.map(option => ({ value: option.dataset.value, text: option.textContent })));
+    const directories = await panel
+      .locator('[role="option"]')
+      .evaluateAll(options => options.map(option => ({ value: option.dataset.value, text: option.textContent })));
     assert.equal(directories.length, 4, '同一 Windows 目录的大小写和分隔符变化应合并');
     const agentDirectory = directories.find(option => /F:\\Projects\\Agent/i.test(option.text));
     const algorithmDirectory = directories.find(option => option.text.includes('F:\\Projects\\Algorithm'));
     const archivedDirectory = directories.find(option => option.text.includes('G:\\Archive\\Algorithm'));
     assert.ok(agentDirectory && algorithmDirectory && archivedDirectory, '同名目录应展示完整路径以区分');
     assert.ok(directories.some(option => option.text.includes('未记录')));
-    assert.ok((await frame.locator('#workspace-directory-trigger').getAttribute('aria-label')).includes('F:\\Projects\\Agent'), '目录触发器的可访问名称应包含当前路径');
+    assert.ok(
+      (await frame.locator('#workspace-directory-trigger').getAttribute('aria-label')).includes('F:\\Projects\\Agent'),
+      '目录触发器的可访问名称应包含当前路径',
+    );
     assert.equal(await panel.locator('[role="option"][aria-selected="true"]').getAttribute('data-value'), agentDirectory.value);
     await assertPanelWithinViewport(panel);
     await panel.locator('.select-filter-input').fill('没有这个工作目录');
@@ -143,7 +182,9 @@ class HarnessFixture extends DemoWatcher {
     assert.equal(await frame.locator('#workspace-directory-trigger').evaluate(button => button === document.activeElement), true);
     assert.equal(await frame.locator('#workspace-directory').inputValue(), agentDirectory.value);
     panel = await openPicker(frame, 'scenario');
-    const sessions = await panel.locator('[role="option"]').evaluateAll(options => options.map(option => ({ value: option.dataset.value, text: option.textContent })));
+    const sessions = await panel
+      .locator('[role="option"]')
+      .evaluateAll(options => options.map(option => ({ value: option.dataset.value, text: option.textContent })));
     assert.deepEqual(new Set(sessions.map(option => option.value)), new Set(['demo-main', 'history-main']));
     assert.equal(new Set(sessions.map(option => option.text)).size, 2, '同名会话应显示不同的时间与短 ID');
     for (const option of sessions) {
@@ -161,12 +202,17 @@ class HarnessFixture extends DemoWatcher {
     await panel.locator('.select-filter-input').press('Escape');
     assert.equal(await frame.locator('#scenario').inputValue(), 'demo-main', '取消下拉不能更改当前会话');
     assert.equal(await frame.locator('.office-gl').count(), 1);
-    assert.ok(await frame.evaluate(() => {
-      const gl = document.querySelector('.office-gl').getContext('webgl2');
-      return gl && !gl.isContextLost() && gl.getParameter(gl.VERSION);
-    }));
+    assert.ok(
+      await frame.evaluate(() => {
+        const gl = document.querySelector('.office-gl').getContext('webgl2');
+        return gl && !gl.isContextLost() && gl.getParameter(gl.VERSION);
+      }),
+    );
     assert.ok(glbResponses.size > 2, '三维场景应实际读取本地 GLB 模型');
-    assert.ok([...glbResponses].every(url => url.startsWith(mount)), '模型请求应保留插件挂载路径');
+    assert.ok(
+      [...glbResponses].every(url => url.startsWith(mount)),
+      '模型请求应保留插件挂载路径',
+    );
     assert.equal((await context.cookies(base)).find(value => value.name === 'fixture-owner').httpOnly, true);
     assert.equal(await frame.evaluate(() => document.cookie), '');
 
@@ -180,11 +226,17 @@ class HarnessFixture extends DemoWatcher {
     const activeResultId = await frame.locator('.search-result[data-active="true"]').getAttribute('id');
     assert.equal(await frame.locator('#task-search').getAttribute('aria-activedescendant'), activeResultId);
     await frame.locator('#task-search').press('Enter');
-    assert.equal(await frame.locator('#detail-name').innerText(), '夏 · 测试审阅', JSON.stringify(await frame.evaluate(() => ({
-      focused: document.activeElement.id,
-      active: document.querySelector('.search-result[data-active="true"]')?.textContent,
-      expanded: document.getElementById('task-search').getAttribute('aria-expanded')
-    }))));
+    assert.equal(
+      await frame.locator('#detail-name').innerText(),
+      '夏 · 测试审阅',
+      JSON.stringify(
+        await frame.evaluate(() => ({
+          focused: document.activeElement.id,
+          active: document.querySelector('.search-result[data-active="true"]')?.textContent,
+          expanded: document.getElementById('task-search').getAttribute('aria-expanded'),
+        })),
+      ),
+    );
     assert.equal(await frame.locator('#search-results').isHidden(), true, '选择搜索结果后应收起结果列表');
     await frame.locator('#task-search').fill('林');
     await frame.locator('#task-search').dispatchEvent('compositionstart');
@@ -290,14 +342,18 @@ class HarnessFixture extends DemoWatcher {
     await choosePicker(frame, 'workspace-directory', agentDirectory.value, 'Agent');
     await frame.waitForFunction(() => document.getElementById('scenario').value === 'demo-main');
     if ((await frame.locator('#play-label').innerText()).includes('固定')) await frame.locator('#toggle-play').click();
-    const oldArchivedLabel = await frame.locator('#workspace-directory option').evaluateAll((options, key) => options.find(option => option.value === key).textContent, archivedDirectory.value);
+    const oldArchivedLabel = await frame
+      .locator('#workspace-directory option')
+      .evaluateAll((options, key) => options.find(option => option.value === key).textContent, archivedDirectory.value);
     panel = await openPicker(frame, 'workspace-directory');
     await panel.locator('.select-filter-input').fill('Algorithm');
     await panel.locator('.select-filter-input').press('End');
     const activeDirectory = await panel.locator('[role="option"][data-active="true"]').getAttribute('data-value');
     watcher.addRoot('new-other-directory', 'G:\\Archive\\Algorithm', '其他目录的新会话');
-    await frame.waitForFunction(([key, previous]) => [...document.getElementById('workspace-directory').options].find(option => option.value === key)?.textContent !== previous,
-      [archivedDirectory.value, oldArchivedLabel]);
+    await frame.waitForFunction(
+      ([key, previous]) => [...document.getElementById('workspace-directory').options].find(option => option.value === key)?.textContent !== previous,
+      [archivedDirectory.value, oldArchivedLabel],
+    );
     assert.equal(await panel.locator('.select-filter-input').inputValue(), 'Algorithm', 'SSE 更新不能清空正在输入的目录筛选');
     assert.equal(await panel.locator('.select-filter-input').evaluate(input => input === document.activeElement), true);
     assert.equal(await panel.locator('[role="option"][data-active="true"]').getAttribute('data-value'), activeDirectory);
@@ -326,8 +382,7 @@ class HarnessFixture extends DemoWatcher {
     assert.equal(await frame.locator('#workspace-directory').inputValue(), agentDirectory.value);
 
     const modePanel = await openPicker(frame, 'mode-select', false, false);
-    await Promise.all([frame.waitForURL(url => url.searchParams.get('mode') !== 'live'),
-      modePanel.locator('[role="option"][data-value="demo"]').click()]);
+    await Promise.all([frame.waitForURL(url => url.searchParams.get('mode') !== 'live'), modePanel.locator('[role="option"][data-value="demo"]').click()]);
     await frame.waitForFunction(() => document.body.dataset.demoReady === 'true');
     assert.equal(new URL(frame.url()).searchParams.get('source'), 'harness');
     assert.equal(await frame.locator('#mode-select-trigger').innerText(), '演示会话');
@@ -340,8 +395,7 @@ class HarnessFixture extends DemoWatcher {
     await frame.locator('#task-search').press('Escape');
     assert.equal(await frame.locator('#task-search').inputValue(), '');
     const backPanel = await openPicker(frame, 'mode-select', false, false);
-    await Promise.all([frame.waitForURL(url => url.searchParams.get('mode') === 'live'),
-      backPanel.locator('[role="option"][data-value="live"]').click()]);
+    await Promise.all([frame.waitForURL(url => url.searchParams.get('mode') === 'live'), backPanel.locator('[role="option"][data-value="live"]').click()]);
     await frame.waitForFunction(() => document.body.dataset.demoReady === 'true');
     await frame.waitForFunction(() => document.getElementById('mode-select')?.value === 'live');
     assert.equal(new URL(frame.url()).searchParams.get('source'), 'harness');
@@ -357,13 +411,24 @@ class HarnessFixture extends DemoWatcher {
     assert.equal(await frame.locator('#team-picker').isVisible(), true);
     assert.equal(await frame.locator('#workspace-directory-trigger').isVisible(), true);
     assert.equal(await frame.locator('#scenario-trigger').isVisible(), true);
-    assert.ok(await frame.evaluate(() => {
-      const within = selector => {
-        const rect = document.querySelector(selector).getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0 && rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight;
-      };
-      return document.documentElement.scrollWidth <= innerWidth && within('.nav') && within('.stats') && within('#workflow-dock') && within('.scene-tools') && within('#workspace-directory-trigger') && within('#scenario-trigger');
-    }), '紧凑窗口的主要控件应位于视口内');
+    assert.ok(
+      await frame.evaluate(() => {
+        const within = selector => {
+          const rect = document.querySelector(selector).getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 && rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight;
+        };
+        return (
+          document.documentElement.scrollWidth <= innerWidth &&
+          within('.nav') &&
+          within('.stats') &&
+          within('#workflow-dock') &&
+          within('.scene-tools') &&
+          within('#workspace-directory-trigger') &&
+          within('#scenario-trigger')
+        );
+      }),
+      '紧凑窗口的主要控件应位于视口内',
+    );
     await frame.locator('#open-details').click();
     assert.equal(await frame.locator('#agent-details').isVisible(), true);
     await frame.locator('#close-details').click();
@@ -380,13 +445,16 @@ class HarnessFixture extends DemoWatcher {
     await frame.waitForFunction(() => document.body.dataset.demoReady === 'true');
     assert.equal(await frame.locator('#workspace-directory-trigger').isVisible(), true);
     assert.equal(await frame.locator('#scenario-trigger').isVisible(), true);
-    assert.ok(await frame.evaluate(() => {
-      const within = selector => {
-        const rect = document.querySelector(selector).getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0 && rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight;
-      };
-      return within('#workspace-directory-trigger') && within('#scenario-trigger');
-    }), '窄屏应把目录与会话选择器放在视口内的独立一行');
+    assert.ok(
+      await frame.evaluate(() => {
+        const within = selector => {
+          const rect = document.querySelector(selector).getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 && rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight;
+        };
+        return within('#workspace-directory-trigger') && within('#scenario-trigger');
+      }),
+      '窄屏应把目录与会话选择器放在视口内的独立一行',
+    );
     const mobileGeometry = await frame.evaluate(() => {
       const picker = document.querySelector('.workspace-switch.harness-picker').getBoundingClientRect();
       const stats = document.querySelector('.stats').getBoundingClientRect();
@@ -395,12 +463,15 @@ class HarnessFixture extends DemoWatcher {
     assert.ok(mobileGeometry.pickerBottom <= mobileGeometry.statsTop, '窄屏选择器行不能压住指标卡');
     await frame.locator('#task-search').fill('Archive');
     await frame.locator('#search-results').waitFor({ state: 'visible' });
-    assert.ok(await frame.evaluate(() => {
-      const item = document.querySelector('#search-result-list .search-result');
-      const rect = item.getBoundingClientRect();
-      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-      return hit === item || item.contains(hit);
-    }), '390px 搜索结果应显示在目录选择器之上并可按坐标点击');
+    assert.ok(
+      await frame.evaluate(() => {
+        const item = document.querySelector('#search-result-list .search-result');
+        const rect = item.getBoundingClientRect();
+        const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        return hit === item || item.contains(hit);
+      }),
+      '390px 搜索结果应显示在目录选择器之上并可按坐标点击',
+    );
     await frame.locator('#clear-search').click();
     assert.equal(await frame.locator('#search-results').isHidden(), true);
     assert.equal(await frame.locator('#team-picker').isVisible(), true);
@@ -409,10 +480,13 @@ class HarnessFixture extends DemoWatcher {
     panel = await openPicker(frame, 'team-workspace-directory');
     await panel.locator('.select-filter-input').fill('完整路径末尾');
     await assertPanelWithinViewport(panel);
-    assert.ok(await panel.evaluate(element => {
-      const style = getComputedStyle(element);
-      return [style.animationDuration, style.transitionDuration].every(value => value.split(',').every(part => parseFloat(part) < .02));
-    }), '减少动画设置应去掉下拉展开的位移动画');
+    assert.ok(
+      await panel.evaluate(element => {
+        const style = getComputedStyle(element);
+        return [style.animationDuration, style.transitionDuration].every(value => value.split(',').every(part => parseFloat(part) < 0.02));
+      }),
+      '减少动画设置应去掉下拉展开的位移动画',
+    );
     await page.screenshot({ path: path.join(out, 'directory-sessions-mobile.png'), fullPage: true });
     await panel.locator('[role="option"]').click();
     await frame.waitForFunction(() => document.getElementById('scenario').value === 'long-session-id-87654321');
@@ -453,7 +527,9 @@ class HarnessFixture extends DemoWatcher {
     const emptyLoaded = emptyPage.waitForResponse(response => new URL(response.url()).pathname.endsWith('/api/sessions'));
     await emptyPage.goto(base + mount + 'demo.html?mode=live&source=harness');
     await emptyLoaded;
-    await emptyPage.waitForFunction(() => document.getElementById('workspace-directory-trigger')?.disabled && document.getElementById('scenario-trigger')?.disabled);
+    await emptyPage.waitForFunction(
+      () => document.getElementById('workspace-directory-trigger')?.disabled && document.getElementById('scenario-trigger')?.disabled,
+    );
     assert.equal(await emptyPage.locator('#workspace-directory-trigger').isDisabled(), true);
     assert.equal(await emptyPage.locator('#scenario-trigger').isDisabled(), true);
     assert.match(await emptyPage.locator('#workspace-directory-trigger').innerText(), /尚未发现/);
@@ -461,15 +537,43 @@ class HarnessFixture extends DemoWatcher {
     await emptyPage.close();
     assert.deepEqual(errors, []);
     assert.deepEqual(failedResponses, []);
-    const result = { ok: true, browser: 'Google Chrome', data: 'isolated in-memory fixture', webgl: true,
-      checks: ['同源 sandbox iframe', 'HttpOnly 身份校验及未登录 401', 'DSH 品牌', '真实模式团队与 SSE 更新',
-        '子路径 GLB 模型', '搜索选择成员', '顶部搜索跨目录打开会话', '跨目录打开无失败提示与查询残留', '完整汇报全文', '工作目录与会话两级选择', '同名目录完整路径与同名会话时间/ID',
-        '团队弹窗目录筛选与嵌套 Escape', '地址 rootId 优先于目录记忆', '只跟随本目录的新会话', '模拟与真实切换保留来源',
-        '搜索键盘导航、输入法组合与清空占位', '未知目录有效空键', '实时刷新保留查询与高亮',
-        '收起搜索后实时更新再用方向键打开使用最新快照', '完整长路径与完整标题筛选',
-        '下拉空匹配、空快照禁用与减少动画', '可访问名称包含当前选择', '390px 触屏 tap 打开、选择与重开', '390px 搜索结果不被选择器遮挡',
-        '1500x1000、900x720 与 390x844 布局及面板边界'],
-      pageErrors: errors, failedResponses, modelCalls: 0, profileWrites: 0 };
+    const result = {
+      ok: true,
+      browser: 'Google Chrome',
+      data: 'isolated in-memory fixture',
+      webgl: true,
+      checks: [
+        '同源 sandbox iframe',
+        'HttpOnly 身份校验及未登录 401',
+        'DSH 品牌',
+        '真实模式团队与 SSE 更新',
+        '子路径 GLB 模型',
+        '搜索选择成员',
+        '顶部搜索跨目录打开会话',
+        '跨目录打开无失败提示与查询残留',
+        '完整汇报全文',
+        '工作目录与会话两级选择',
+        '同名目录完整路径与同名会话时间/ID',
+        '团队弹窗目录筛选与嵌套 Escape',
+        '地址 rootId 优先于目录记忆',
+        '只跟随本目录的新会话',
+        '模拟与真实切换保留来源',
+        '搜索键盘导航、输入法组合与清空占位',
+        '未知目录有效空键',
+        '实时刷新保留查询与高亮',
+        '收起搜索后实时更新再用方向键打开使用最新快照',
+        '完整长路径与完整标题筛选',
+        '下拉空匹配、空快照禁用与减少动画',
+        '可访问名称包含当前选择',
+        '390px 触屏 tap 打开、选择与重开',
+        '390px 搜索结果不被选择器遮挡',
+        '1500x1000、900x720 与 390x844 布局及面板边界',
+      ],
+      pageErrors: errors,
+      failedResponses,
+      modelCalls: 0,
+      profileWrites: 0,
+    };
     fs.writeFileSync(path.join(out, 'directory-sessions-browser-result.json'), JSON.stringify(result, null, 2));
     console.log(JSON.stringify(result, null, 2));
   } finally {
@@ -478,4 +582,7 @@ class HarnessFixture extends DemoWatcher {
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
   }
-})().catch(error => { console.error(error); process.exitCode = 1; });
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});

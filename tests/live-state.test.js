@@ -9,7 +9,7 @@ const snapshot = (agents, rootId = ROOT) => ({
   roots: [{ id: rootId, title: '真实协作检查', cwd: 'F:\\Program\\Office' }],
   agents,
   events: [],
-  warnings: []
+  warnings: [],
 });
 
 test('Harness 来源使用宿主名称和图标，Codex 来源仍沿用原展示', async () => {
@@ -31,8 +31,19 @@ test('保留真实字段和事件，仅增加展示信息', async () => {
   const events = [{ id: 'event-1', sessionId: ROOT, targetId: CHILD, type: 'assign', at: 2000 }];
   const raw = snapshot([
     { id: ROOT, parentId: null, status: 'waiting_agents', task: '检查搜索与筛选实现', turnStartedAt: 1000 },
-    { id: CHILD, parentId: ROOT, status: 'tool', task: '检查真实接口', taskEventId: 'task-1', taskSessionId: ROOT,
-      reportEventId: 'report-current', reports, events, activity: '读取源码', model: 'actual-model' }
+    {
+      id: CHILD,
+      parentId: ROOT,
+      status: 'tool',
+      task: '检查真实接口',
+      taskEventId: 'task-1',
+      taskSessionId: ROOT,
+      reportEventId: 'report-current',
+      reports,
+      events,
+      activity: '读取源码',
+      model: 'actual-model',
+    },
   ]);
   raw.events = events;
   const view = new LiveViewAdapter().update(raw, 9000);
@@ -70,7 +81,7 @@ test('历史汇报不计入本轮，子 Agent 完成不等于主任务完成', a
   const adapter = new LiveViewAdapter();
   const raw = snapshot([
     { id: ROOT, status: 'thinking', task: '复核结果' },
-    { id: CHILD, parentId: ROOT, status: 'done', reports: [{ id: 'old-report' }] }
+    { id: CHILD, parentId: ROOT, status: 'done', reports: [{ id: 'old-report' }] },
   ]);
   let view = adapter.update(raw);
   assert.equal(view.received, 0);
@@ -94,11 +105,13 @@ test('历史汇报不计入本轮，子 Agent 完成不等于主任务完成', a
 test('保留等待、未知和异常状态，不推算执行进度', async () => {
   const { LiveViewAdapter } = await state;
   const statuses = ['waiting', 'waiting_agents', 'unknown', 'error', 'interrupted', 'closed', 'idle'];
-  const view = new LiveViewAdapter().update(snapshot([
-    { id: ROOT, status: 'thinking' },
-    ...statuses.map((status, index) => ({ id: 'child-' + index, parentId: ROOT, status }))
-  ]));
-  assert.deepEqual(view.agents.slice(1).map(agent => agent.status), statuses);
+  const view = new LiveViewAdapter().update(
+    snapshot([{ id: ROOT, status: 'thinking' }, ...statuses.map((status, index) => ({ id: 'child-' + index, parentId: ROOT, status }))]),
+  );
+  assert.deepEqual(
+    view.agents.slice(1).map(agent => agent.status),
+    statuses,
+  );
   assert.ok(view.agents.every(agent => agent.progress === null));
   assert.equal(view.active, 3);
   assert.equal(view.received, 0);
@@ -110,7 +123,9 @@ test('工位跨重排保持稳定，支持四人以上及嵌套团队', async ()
   const adapter = new LiveViewAdapter();
   const root = { id: ROOT, status: 'thinking' };
   const children = Array.from({ length: 6 }, (_, index) => ({
-    id: 'child-' + index, parentId: index === 5 ? 'child-1' : ROOT, status: 'tool'
+    id: 'child-' + index,
+    parentId: index === 5 ? 'child-1' : ROOT,
+    status: 'tool',
   }));
   const first = adapter.update(snapshot([root, ...children.slice(0, 3)]));
   const slots = new Map(first.agents.map(agent => [agent.id, agent.slot]));
@@ -131,12 +146,22 @@ test('工位跨重排保持稳定，支持四人以上及嵌套团队', async ()
 test('切换主会话后重新分配工位', async () => {
   const { LiveViewAdapter } = await state;
   const adapter = new LiveViewAdapter();
-  adapter.update(snapshot([{ id: ROOT, status: 'thinking' }, { id: CHILD, parentId: ROOT, status: 'tool' }]));
+  adapter.update(
+    snapshot([
+      { id: ROOT, status: 'thinking' },
+      { id: CHILD, parentId: ROOT, status: 'tool' },
+    ]),
+  );
   const nextRoot = 'new-root';
-  const view = adapter.update(snapshot([
-    { id: 'new-child', parentId: nextRoot, status: 'tool' },
-    { id: nextRoot, status: 'thinking' }
-  ], nextRoot));
+  const view = adapter.update(
+    snapshot(
+      [
+        { id: 'new-child', parentId: nextRoot, status: 'tool' },
+        { id: nextRoot, status: 'thinking' },
+      ],
+      nextRoot,
+    ),
+  );
   assert.equal(view.agents[0].id, nextRoot);
   assert.equal(view.agents[0].slot, 0);
   assert.equal(view.agents[1].slot, 1);
@@ -184,8 +209,7 @@ test('旧轮次已结束成员保留在团队内，但不参与本轮指标或�
   const { LiveViewAdapter } = await state;
   const adapter = new LiveViewAdapter();
   const root = { id: ROOT, status: 'thinking', turnStartedAt: 10000 };
-  const old = { id: CHILD, parentId: ROOT, status: 'done', lastEventAt: 6000,
-    endedAt: 5000, reportEventId: 'old-report' };
+  const old = { id: CHILD, parentId: ROOT, status: 'done', lastEventAt: 6000, endedAt: 5000, reportEventId: 'old-report' };
   const raw = snapshot([root, old]);
   let view = adapter.update(raw, 15000);
   assert.equal(view.agents.length, 2);
@@ -210,8 +234,16 @@ test('追加任务先到父日志时，不把子 Agent 上一轮报告当作新�
   const { LiveViewAdapter } = await state;
   const adapter = new LiveViewAdapter();
   const root = { id: ROOT, status: 'thinking', turnStartedAt: 10000 };
-  const child = { id: CHILD, parentId: ROOT, status: 'done', turnStartedAt: 1000,
-    endedAt: 5000, lastEventAt: 6000, reportEventId: 'old-report', reports: ['old-report'] };
+  const child = {
+    id: CHILD,
+    parentId: ROOT,
+    status: 'done',
+    turnStartedAt: 1000,
+    endedAt: 5000,
+    lastEventAt: 6000,
+    reportEventId: 'old-report',
+    reports: ['old-report'],
+  };
   const oldReport = { id: 'old-report', sessionId: CHILD, type: 'report', at: 5000 };
   const followup = { id: 'followup', sessionId: ROOT, targetId: CHILD, type: 'message', at: 11000 };
   const raw = snapshot([root, child]);
@@ -241,7 +273,7 @@ test('优先报告事件时间，重复追加指令后等待下一次汇报', as
   const { LiveViewAdapter } = await state;
   const raw = snapshot([
     { id: ROOT, status: 'thinking', turnStartedAt: 10000 },
-    { id: CHILD, parentId: ROOT, status: 'done', reportEventId: 'current-report', endedAt: 18000, lastEventAt: 20000 }
+    { id: CHILD, parentId: ROOT, status: 'done', reportEventId: 'current-report', endedAt: 18000, lastEventAt: 20000 },
   ]);
   const report = { id: 'current-report', sessionId: CHILD, type: 'report', at: 14000 };
   raw.agents[1].events = [report];
@@ -256,11 +288,11 @@ test('子 Agent 发给主 Agent 的后续消息不会使主任务总结失效', 
   const { LiveViewAdapter } = await state;
   const raw = snapshot([
     { id: ROOT, status: 'done', turnStartedAt: 10000, reportEventId: 'main-report', endedAt: 15000 },
-    { id: CHILD, parentId: ROOT, status: 'done', endedAt: 14000 }
+    { id: CHILD, parentId: ROOT, status: 'done', endedAt: 14000 },
   ]);
   raw.events = [
     { id: 'main-report', sessionId: ROOT, type: 'report', at: 15000 },
-    { id: 'late-note', sessionId: CHILD, targetId: ROOT, type: 'message', at: 16000 }
+    { id: 'late-note', sessionId: CHILD, targetId: ROOT, type: 'message', at: 16000 },
   ];
   const view = new LiveViewAdapter().update(raw, 17000);
   assert.equal(view.agents[0].hasReport, true);

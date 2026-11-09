@@ -8,15 +8,27 @@ const crypto = require('node:crypto');
 const { EventEmitter } = require('node:events');
 
 const unreadableTask = '任务正文未记录为可见明文';
-const isOpaque = (text) => typeof text === 'string' && /^gAAAAA[A-Za-z0-9_-]{90,}={0,2}$/.test(text.trim());
-const visibleText = (value) => typeof value === 'string' && !isOpaque(value) ? value : '';
-const short = (v, n = 180) => visibleText(String(v || '')).replace(/\s+/g, ' ').trim().slice(0, n);
-const textOf = (content) => typeof content === 'string' ? visibleText(content)
-  : Array.isArray(content) ? content.map((x) => visibleText(x.text)).filter(Boolean).join('\n') : '';
-const contextOnly = (text) => {
+const isOpaque = text => typeof text === 'string' && /^gAAAAA[A-Za-z0-9_-]{90,}={0,2}$/.test(text.trim());
+const visibleText = value => (typeof value === 'string' && !isOpaque(value) ? value : '');
+const short = (v, n = 180) =>
+  visibleText(String(v || ''))
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, n);
+const textOf = content =>
+  typeof content === 'string'
+    ? visibleText(content)
+    : Array.isArray(content)
+      ? content
+          .map(x => visibleText(x.text))
+          .filter(Boolean)
+          .join('\n')
+      : '';
+const contextOnly = text => {
   let rest = text.trim();
   // 只排除完整的上下文包装；普通请求中的示例、代码块仍属于用户任务。
-  const block = /^(?:# AGENTS\.md instructions[ \t]*\r?\n\s*<INSTRUCTIONS>[\s\S]*?<\/INSTRUCTIONS>|<(environment_context|external_codex_apps_[\w.-]+)>[\s\S]*?<\/\1>)\s*/;
+  const block =
+    /^(?:# AGENTS\.md instructions[ \t]*\r?\n\s*<INSTRUCTIONS>[\s\S]*?<\/INSTRUCTIONS>|<(environment_context|external_codex_apps_[\w.-]+)>[\s\S]*?<\/\1>)\s*/;
   while (rest) {
     const match = rest.match(block);
     if (!match) return false;
@@ -24,24 +36,56 @@ const contextOnly = (text) => {
   }
   return true;
 };
-const digest = (v) => crypto.createHash('sha256').update(v).digest('hex').slice(0, 20);
-const parseArgs = (v) => {
+const digest = v => crypto.createHash('sha256').update(v).digest('hex').slice(0, 20);
+const parseArgs = v => {
   if (v && typeof v === 'object') return v;
-  try { const parsed = JSON.parse(v || '{}'); return parsed && typeof parsed === 'object' ? parsed : {}; } catch { return {}; }
+  try {
+    const parsed = JSON.parse(v || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
 };
 const terminal = new Set(['done', 'error', 'interrupted', 'closed']);
-const toolName = (v) => String(v || '').split('.').pop();
+const toolName = v =>
+  String(v || '')
+    .split('.')
+    .pop();
 
 function newAgent(id) {
-  return { id, key: id, agent: 'codex', parentId: null, rootId: id, name: null,
-    role: null, cwd: '', model: '', status: 'unknown', activity: '', task: '',
-    taskEventId: null, taskSessionId: null, reportEventId: null, startedAt: null, turnStartedAt: null,
-    lastEventAt: null, endedAt: null, relationship: 'unconfirmed', reports: [] };
+  return {
+    id,
+    key: id,
+    agent: 'codex',
+    parentId: null,
+    rootId: id,
+    name: null,
+    role: null,
+    cwd: '',
+    model: '',
+    status: 'unknown',
+    activity: '',
+    task: '',
+    taskEventId: null,
+    taskSessionId: null,
+    reportEventId: null,
+    startedAt: null,
+    turnStartedAt: null,
+    lastEventAt: null,
+    endedAt: null,
+    relationship: 'unconfirmed',
+    reports: [],
+  };
 }
 
 class CodexWatcher extends EventEmitter {
-  constructor({ codexHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex'),
-    interval = 1000, scanInterval = 5000, hours = 24, rootsLimit = 60 } = {}) {
+  constructor({
+    codexHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex'),
+    interval = 1000,
+    scanInterval = 5000,
+    hours = 24,
+    rootsLimit = 60,
+  } = {}) {
     super();
     this.home = codexHome;
     this.dir = path.join(codexHome, 'sessions');
@@ -74,7 +118,9 @@ class CodexWatcher extends EventEmitter {
     return this;
   }
 
-  stop() { clearInterval(this.timer); }
+  stop() {
+    clearInterval(this.timer);
+  }
 
   readHeader(file) {
     const fd = fs.openSync(file, 'r');
@@ -90,15 +136,21 @@ class CodexWatcher extends EventEmitter {
         blocks.push(buf.subarray(0, end < 0 ? n : end));
         if (end >= 0) return JSON.parse(Buffer.concat(blocks).toString('utf8'));
       }
-    } finally { fs.closeSync(fd); }
+    } finally {
+      fs.closeSync(fd);
+    }
   }
 
   scan(now) {
     const found = new Map();
-    const walk = (dir) => {
+    const walk = dir => {
       let entries;
-      try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
-      catch (e) { if (e.code !== 'ENOENT') this.warnings.set('scan', '部分会话目录暂时无法读取'); return; }
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch (e) {
+        if (e.code !== 'ENOENT') this.warnings.set('scan', '部分会话目录暂时无法读取');
+        return;
+      }
       for (const entry of entries) {
         const file = path.join(dir, entry.name);
         if (entry.isDirectory()) walk(file);
@@ -108,14 +160,18 @@ class CodexWatcher extends EventEmitter {
           try {
             const st = fs.statSync(file);
             found.set(match[1], { file, size: st.size, mtime: st.mtimeMs });
-          } catch { this.warnings.set('scan', '部分会话日志暂时无法读取'); }
+          } catch {
+            this.warnings.set('scan', '部分会话日志暂时无法读取');
+          }
         }
       }
     };
     walk(this.dir);
     this.files = found;
-    const recent = [...found].filter(([, f]) => f.mtime >= now - this.window)
-      .sort((a, b) => b[1].mtime - a[1].mtime).slice(0, this.rootsLimit * 4);
+    const recent = [...found]
+      .filter(([, f]) => f.mtime >= now - this.window)
+      .sort((a, b) => b[1].mtime - a[1].mtime)
+      .slice(0, this.rootsLimit * 4);
     for (const [id, f] of recent) this.ensureMeta(id, f);
     // 沿已知父 ID 补读元数据，不依赖父会话最近是否有写入。
     for (const s of [...this.agents.values()]) {
@@ -135,7 +191,9 @@ class CodexWatcher extends EventEmitter {
         s._metaFile = f.file;
         s._hasMeta = true;
       }
-    } catch { this.warnings.set('header:' + id, '有会话元数据暂时不可用，将继续重试'); }
+    } catch {
+      this.warnings.set('header:' + id, '有会话元数据暂时不可用，将继续重试');
+    }
   }
 
   metadata(s, p) {
@@ -146,9 +204,11 @@ class CodexWatcher extends EventEmitter {
     s.role = p.agent_role || p.agent_type || s.role;
     const spawn = p.source?.subagent?.thread_spawn;
     s._historyStart = Number.isInteger(p.subagent_history_start_ordinal) ? p.subagent_history_start_ordinal : s._historyStart || 0;
-    s._internal = !!p.source?.internal || p.thread_source === 'guardian_review'
-      || ['guardian', 'review', 'compact', 'memory_consolidation'].includes(p.source?.subagent?.other)
-      || ['review', 'compact', 'memory_consolidation'].includes(p.source?.subagent);
+    s._internal =
+      !!p.source?.internal ||
+      p.thread_source === 'guardian_review' ||
+      ['guardian', 'review', 'compact', 'memory_consolidation'].includes(p.source?.subagent?.other) ||
+      ['review', 'compact', 'memory_consolidation'].includes(p.source?.subagent);
     s.agentPath = p.agent_path || spawn?.agent_path || s.agentPath || null;
     s.name ||= s.agentPath?.split('/').filter(Boolean).pop() || null;
     const parent = p.parent_thread_id || spawn?.parent_thread_id;
@@ -174,15 +234,17 @@ class CodexWatcher extends EventEmitter {
     const base = sender.agentPath || (!sender.parentId ? '/root' : null);
     const agentPath = target.startsWith('/') ? target : base && base + '/' + target;
     if (!agentPath) return null;
-    return [...this.agents.values()].find((s) => !s._internal && s.agentPath === agentPath
-      && this.rootOf(s.id) === this.rootOf(sender.id))?.id || null;
+    return [...this.agents.values()].find(s => !s._internal && s.agentPath === agentPath && this.rootOf(s.id) === this.rootOf(sender.id))?.id || null;
   }
 
   resolvePendingTargets() {
     for (const [id, pending] of this.pendingTargets) {
       const event = this.events.get(id);
       const sender = this.agents.get(pending.sender);
-      if (!event || !sender) { this.pendingTargets.delete(id); continue; }
+      if (!event || !sender) {
+        this.pendingTargets.delete(id);
+        continue;
+      }
       const targetId = this.resolveTarget(sender, pending.target);
       if (targetId) {
         event.targetId = targetId;
@@ -203,7 +265,10 @@ class CodexWatcher extends EventEmitter {
     let cursor = parentId;
     const seen = new Set([childId]);
     while (cursor) {
-      if (seen.has(cursor)) { child.relationship = 'conflict'; return; }
+      if (seen.has(cursor)) {
+        child.relationship = 'conflict';
+        return;
+      }
       seen.add(cursor);
       cursor = this.agents.get(cursor)?.parentId;
     }
@@ -228,8 +293,7 @@ class CodexWatcher extends EventEmitter {
     const dedupe = key ? s.id + ':' + type + ':' + key : null;
     if (dedupe && this.eventKeys.has(dedupe)) return this.events.get(this.eventKeys.get(dedupe));
     const id = digest(s.id + ':' + ref.offset + ':' + (ref.hash || '') + ':' + type + ':' + (targetId || ''));
-    const e = { id, sessionId: s.id, targetId, type, at: ref.at,
-      preview: short(content), hasText: !!content, _ref: { ...ref } };
+    const e = { id, sessionId: s.id, targetId, type, at: ref.at, preview: short(content), hasText: !!content, _ref: { ...ref } };
     this.events.set(id, e);
     if (dedupe) this.eventKeys.set(dedupe, id);
     s.lastEventAt = Math.max(s.lastEventAt || 0, ref.at || 0);
@@ -248,9 +312,9 @@ class CodexWatcher extends EventEmitter {
     text = visibleText(text);
     if (!text) return null;
     const hash = digest(text);
-    const previous = [...this.events.values()].reverse().find((e) => e.type === 'report'
-      && e.sessionId === s.id && e._textHash === hash
-      && (e._ref.ownerSessionId || ref.ownerSessionId));
+    const previous = [...this.events.values()]
+      .reverse()
+      .find(e => e.type === 'report' && e.sessionId === s.id && e._textHash === hash && (e._ref.ownerSessionId || ref.ownerSessionId));
     if (previous) {
       if (!ref.ownerSessionId) previous._ref = { ...ref };
       s.reportEventId = previous.id;
@@ -268,8 +332,15 @@ class CodexWatcher extends EventEmitter {
   process(s, d, ref) {
     if (!d || typeof d !== 'object' || !d.payload || typeof d.payload !== 'object') return;
     const p = d.payload || {};
-    if (d.type === 'session_meta') { this.metadata(s, p); return; }
-    if (d.type === 'turn_context') { s.model = p.model || s.model; s.cwd = p.cwd || s.cwd; return; }
+    if (d.type === 'session_meta') {
+      this.metadata(s, p);
+      return;
+    }
+    if (d.type === 'turn_context') {
+      s.model = p.model || s.model;
+      s.cwd = p.cwd || s.cwd;
+      return;
+    }
     if (d.type === 'event_msg') {
       const t = p.type;
       if (typeof t !== 'string') {
@@ -314,8 +385,12 @@ class CodexWatcher extends EventEmitter {
           if (item.phase === 'final_answer' || item.channel === 'final') this.report(s, text, ref);
           else this.add(s, 'progress', text, ref, { key: String(s._turn || '') + ':' + digest(text) });
         } else if (item.type === 'CommandExecution' || item.type === 'McpToolCall' || item.type === 'FileChange') {
-          const activity = item.type === 'CommandExecution' ? short(Array.isArray(item.command) ? item.command.join(' ') : item.command)
-            : item.type === 'FileChange' ? '修改文件' : String(item.tool || 'MCP 工具');
+          const activity =
+            item.type === 'CommandExecution'
+              ? short(Array.isArray(item.command) ? item.command.join(' ') : item.command)
+              : item.type === 'FileChange'
+                ? '修改文件'
+                : String(item.tool || 'MCP 工具');
           this.status(s, t === 'item_started' ? 'tool' : 'thinking', ref.at);
           s.activity = activity;
           if (t === 'item_started') this.add(s, 'tool', activity, ref, { key: item.id || null });
@@ -328,7 +403,9 @@ class CodexWatcher extends EventEmitter {
       const text = textOf(p.content);
       if (!visibleText(text) || contextOnly(text)) return;
       const e = this.add(s, 'task', text, ref, { key: String(s._turn || '') + ':' + digest(text) });
-      s.task = short(text); s.taskEventId = e.id; s.taskSessionId = s.id;
+      s.task = short(text);
+      s.taskEventId = e.id;
+      s.taskSessionId = s.id;
     } else if (p.type === 'message' && p.role === 'assistant') {
       const text = textOf(p.content);
       if (!text) return;
@@ -343,8 +420,7 @@ class CodexWatcher extends EventEmitter {
       const waiting = name.startsWith('request_user_input');
       const waitingAgents = name === 'wait_agent';
       this.status(s, waitingAgents ? 'waiting_agents' : waiting ? 'waiting' : 'tool', ref.at);
-      s.activity = name === 'interrupt_agent' ? short('请求中断 ' + (args.target || 'Agent'), 240)
-        : short(args.cmd || args.command || p.name || p.type, 240);
+      s.activity = name === 'interrupt_agent' ? short('请求中断 ' + (args.target || 'Agent'), 240) : short(args.cmd || args.command || p.name || p.type, 240);
       this.add(s, waitingAgents ? 'wait' : waiting ? 'approval' : 'tool', waitingAgents ? '' : s.activity, ref, { key: callId });
       if (['send_input', 'send_message', 'followup_task'].includes(name)) {
         const target = args.id || args.target;
@@ -362,7 +438,7 @@ class CodexWatcher extends EventEmitter {
         else if (out.task_name) {
           const assignment = { prompt: call.args.message || call.args.prompt || '', ref: { ...call.ref, at: ref.at }, callId: p.call_id };
           this.pathAssignments.set(s.id + ':' + out.task_name, assignment);
-          const child = [...this.agents.values()].find((v) => v.parentId === s.id && v.agentPath === out.task_name);
+          const child = [...this.agents.values()].find(v => v.parentId === s.id && v.agentPath === out.task_name);
           if (child) this.assign(s, child.id, assignment.prompt, assignment.ref, assignment.callId);
         }
       }
@@ -377,7 +453,11 @@ class CodexWatcher extends EventEmitter {
     child.name = p.new_agent_nickname || p.agent_nickname || child.name;
     child.role = p.new_agent_role || p.agent_role || child.role;
     const e = this.add(s, 'assign', prompt, ref, { targetId: childId, key: callId || childId });
-    if (!child.taskEventId) { child.task = isOpaque(prompt) ? unreadableTask : short(prompt); child.taskEventId = e.id; child.taskSessionId = s.id; }
+    if (!child.taskEventId) {
+      child.task = isOpaque(prompt) ? unreadableTask : short(prompt);
+      child.taskEventId = e.id;
+      child.taskSessionId = s.id;
+    }
     if (p.model) child.model = p.model;
   }
 
@@ -396,11 +476,11 @@ class CodexWatcher extends EventEmitter {
       this.add(sender, 'wait', '', ref, { key: p.call_id });
     } else if (p.type === 'collab_waiting_end') {
       this.status(sender, 'thinking', ref.at);
-      const statuses = p.statuses || Object.fromEntries((p.agent_statuses || []).map((v) => [v.thread_id, v.status]));
+      const statuses = p.statuses || Object.fromEntries((p.agent_statuses || []).map(v => [v.thread_id, v.status]));
       for (const [id, state] of Object.entries(statuses)) {
         const child = this.agent(id);
         if (typeof state === 'object' && state?.completed != null) {
-          const e = this.report(child, state.completed, { ...ref, ownerSessionId: s.id });
+          this.report(child, state.completed, { ...ref, ownerSessionId: s.id });
           this.status(child, 'done', ref.at);
         } else if (typeof state === 'object' && state?.errored != null) this.status(child, 'error', ref.at);
       }
@@ -441,37 +521,50 @@ class CodexWatcher extends EventEmitter {
         track.offset += n;
         budget -= n;
         let lineStart = 0;
-        for (let i = 0; i < joined.length; i++) if (joined[i] === 10) {
-          const line = joined.subarray(lineStart, i).toString('utf8').trim();
-          if (line) {
-            try {
-              const d = JSON.parse(line);
-              if (track.ordinal === 0 || track.ordinal >= (s._historyStart || 0)) {
-                this.process(s, d, { file: f.file, offset: start + lineStart,
-                  length: i - lineStart, hash: digest(line), at: Date.parse(d.timestamp) || st.mtimeMs });
+        for (let i = 0; i < joined.length; i++)
+          if (joined[i] === 10) {
+            const line = joined.subarray(lineStart, i).toString('utf8').trim();
+            if (line) {
+              try {
+                const d = JSON.parse(line);
+                if (track.ordinal === 0 || track.ordinal >= (s._historyStart || 0)) {
+                  this.process(s, d, {
+                    file: f.file,
+                    offset: start + lineStart,
+                    length: i - lineStart,
+                    hash: digest(line),
+                    at: Date.parse(d.timestamp) || st.mtimeMs,
+                  });
+                }
+              } catch (e) {
+                if (e instanceof SyntaxError) this.warnings.set('parse:' + id, '日志中存在无法解析的记录，其他活动继续同步');
+                else throw e;
               }
-            } catch (e) {
-              if (e instanceof SyntaxError) this.warnings.set('parse:' + id, '日志中存在无法解析的记录，其他活动继续同步');
-              else throw e;
             }
+            track.ordinal++;
+            lineStart = i + 1;
           }
-          track.ordinal++;
-          lineStart = i + 1;
-        }
         track.pending = Buffer.from(joined.subarray(lineStart));
       }
       track.mtime = st.mtimeMs;
       s.loading = track.offset < st.size;
       s.lastEventAt ||= st.mtimeMs;
-    } finally { fs.closeSync(fd); }
+    } finally {
+      fs.closeSync(fd);
+    }
   }
 
   roots() {
-    return [...this.agents.values()].filter((s) => !s.parentId && !s._isSubagent && !s._internal && this.files.has(s.id))
+    return [...this.agents.values()]
+      .filter(s => !s.parentId && !s._isSubagent && !s._internal && this.files.has(s.id))
       .sort((a, b) => (this.files.get(b.id)?.mtime || 0) - (this.files.get(a.id)?.mtime || 0))
-      .slice(0, this.rootsLimit).map((s) => ({
-        id: s.id, title: s.task || path.basename(s.cwd) || 'Codex 任务', cwd: s.cwd,
-        status: s.status, at: this.files.get(s.id)?.mtime || s.lastEventAt,
+      .slice(0, this.rootsLimit)
+      .map(s => ({
+        id: s.id,
+        title: s.task || path.basename(s.cwd) || 'Codex 任务',
+        cwd: s.cwd,
+        status: s.status,
+        at: this.files.get(s.id)?.mtime || s.lastEventAt,
       }));
   }
 
@@ -487,23 +580,30 @@ class CodexWatcher extends EventEmitter {
     try {
       const now = Date.now();
       if (!this.lastScan || now - this.lastScan >= this.scanInterval) this.scan(now);
-      const roots = this.pins.size ? this.pins : new Set(this.roots().slice(0, 1).map((s) => s.id));
+      const roots = this.pins.size
+        ? this.pins
+        : new Set(
+            this.roots()
+              .slice(0, 1)
+              .map(s => s.id),
+          );
       // 创建事件可能先于子日志落盘；每一轮都重新扩展团队成员。
       for (let round = 0; round < 12; round++) {
         let added = false;
-        for (const s of [...this.agents.values()]) if (roots.has(this.rootOf(s.id))) {
-          if (this.files.has(s.id) && !s._internal) {
-            try {
-              this.ensureMeta(s.id);
-              const had = this.tracks.has(s.id);
-              this.load(s.id);
-              if (!had) added = true;
-              this.warnings.delete('read:' + s.id);
-            } catch (e) {
-              this.warnings.set('read:' + s.id, '有成员日志读取受阻（' + (e.code || e.name) + '），其他成员继续同步');
+        for (const s of [...this.agents.values()])
+          if (roots.has(this.rootOf(s.id))) {
+            if (this.files.has(s.id) && !s._internal) {
+              try {
+                this.ensureMeta(s.id);
+                const had = this.tracks.has(s.id);
+                this.load(s.id);
+                if (!had) added = true;
+                this.warnings.delete('read:' + s.id);
+              } catch (e) {
+                this.warnings.set('read:' + s.id, '有成员日志读取受阻（' + (e.code || e.name) + '），其他成员继续同步');
+              }
             }
           }
-        }
         if (!added) break;
       }
       this.warnings.delete('runtime');
@@ -516,22 +616,31 @@ class CodexWatcher extends EventEmitter {
   snapshot(rootId) {
     const roots = this.roots();
     const selected = rootId && this.agents.has(rootId) ? this.rootOf(rootId) : roots[0]?.id || null;
-    const members = [...this.agents.values()].filter((s) => this.rootOf(s.id) === selected && !s._internal);
-    const ids = new Set(members.map((s) => s.id));
-    const allEvents = [...this.events.values()].filter((e) => ids.has(e.sessionId))
-      .sort((a, b) => a.at - b.at || a._ref.offset - b._ref.offset);
+    const members = [...this.agents.values()].filter(s => this.rootOf(s.id) === selected && !s._internal);
+    const ids = new Set(members.map(s => s.id));
+    const allEvents = [...this.events.values()].filter(e => ids.has(e.sessionId)).sort((a, b) => a.at - b.at || a._ref.offset - b._ref.offset);
     const publicEvent = ({ _ref, _textHash, ...e }) => e;
-    return { mode: 'live', revision: this.revision, rootId: selected, roots,
-      agents: members.map((s) => {
+    return {
+      mode: 'live',
+      revision: this.revision,
+      rootId: selected,
+      roots,
+      agents: members.map(s => {
         const agent = Object.fromEntries(Object.entries(s).filter(([k]) => !k.startsWith('_')));
         agent.rootId = selected;
         agent.name ||= s.id === selected ? '主 Agent' : '子 Agent ' + s.id.slice(0, 6);
         agent.subagent = !!s.parentId;
-        agent.events = allEvents.filter((e) => e.sessionId === s.id || e.targetId === s.id).slice(-80).map(publicEvent);
+        agent.events = allEvents
+          .filter(e => e.sessionId === s.id || e.targetId === s.id)
+          .slice(-80)
+          .map(publicEvent);
         return agent;
       }),
-      events: allEvents.slice(-160).map(publicEvent), totalEvents: allEvents.length,
-      warnings: [...new Set(this.warnings.values())], updatedAt: Date.now() };
+      events: allEvents.slice(-160).map(publicEvent),
+      totalEvents: allEvents.length,
+      warnings: [...new Set(this.warnings.values())],
+      updatedAt: Date.now(),
+    };
   }
 
   fullText(sessionId, eventId) {
@@ -547,11 +656,12 @@ class CodexWatcher extends EventEmitter {
       const raw = buf.toString('utf8').trim();
       if (ref.hash && digest(raw) !== ref.hash) throw new Error('原始记录已经改变');
       d = JSON.parse(raw);
-    } finally { fs.closeSync(fd); }
+    } finally {
+      fs.closeSync(fd);
+    }
     const p = d.payload || {};
     let text = p.message || p.last_agent_message || p.prompt || textOf(p.content) || textOf(p.item?.content);
-    if (p.type === 'collab_waiting_end') text = p.statuses?.[sessionId]?.completed
-      || p.agent_statuses?.find((x) => x.thread_id === sessionId)?.status?.completed;
+    if (p.type === 'collab_waiting_end') text = p.statuses?.[sessionId]?.completed || p.agent_statuses?.find(x => x.thread_id === sessionId)?.status?.completed;
     if (p.type === 'function_call' || p.type === 'custom_tool_call') {
       const a = parseArgs(p.arguments || p.input);
       text = a.message || a.prompt || a.cmd || a.command || p.name;

@@ -1,6 +1,7 @@
 import { LiveViewAdapter } from './live-state.mjs';
 import { officeSource, officeUrl } from './base-url.mjs';
 import { directoryGroups, directoryKey, directorySessions } from './session-selection.mjs';
+import { t } from './i18n.mjs';
 
 // 连接只读快照流；首次加载、切换及重连都建立动画基线。
 export class LiveSource extends EventTarget {
@@ -9,7 +10,7 @@ export class LiveSource extends EventTarget {
     this.adapter = new LiveViewAdapter();
     this.kind = officeSource();
     this.storageKey = this.kind === 'harness' ? 'office.harness.live.root' : 'office.live.root';
-    this.directoryKey = this.kind === 'harness' ? localStorage.getItem('office.harness.live.directory') ?? null : null;
+    this.directoryKey = this.kind === 'harness' ? (localStorage.getItem('office.harness.live.directory') ?? null) : null;
     this.explicitRootId = rootId || null;
     this.raw = { source: this.kind };
     this.rootId = rootId || localStorage.getItem(this.storageKey) || '';
@@ -22,7 +23,9 @@ export class LiveSource extends EventTarget {
     this.records = new Map();
   }
 
-  get snapshot() { return this.adapter.update(this.raw); }
+  get snapshot() {
+    return this.adapter.update(this.raw);
+  }
 
   changed(baseline = false) {
     this.dispatchEvent(new CustomEvent('change', { detail: { baseline } }));
@@ -45,12 +48,12 @@ export class LiveSource extends EventTarget {
         response = await fetch(officeUrl('api/sessions'), { signal: this.abort.signal });
       }
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || '读取会话失败');
+      if (!response.ok) throw new Error(data.error || t('source.sessionReadFail'));
       if (generation !== this.generation) return;
       this.accept(data);
       if (generation !== this.generation) return;
       const params = new URLSearchParams(this.rootId ? { rootId: this.rootId } : {});
-      const source = this.source = new EventSource(officeUrl('events?' + params));
+      const source = (this.source = new EventSource(officeUrl('events?' + params)));
       source.onopen = () => {
         if (generation !== this.generation) return;
         this.baseline = true;
@@ -58,16 +61,20 @@ export class LiveSource extends EventTarget {
         this.error = '';
         this.changed(true);
       };
-      source.onmessage = (event) => {
+      source.onmessage = event => {
         if (generation !== this.generation) return;
-        try { this.accept(JSON.parse(event.data)); }
-        catch (error) { this.error = '读取事件失败：' + error.message; this.changed(true); }
+        try {
+          this.accept(JSON.parse(event.data));
+        } catch (error) {
+          this.error = t('source.eventReadFail', { message: error.message });
+          this.changed(true);
+        }
       };
       source.onerror = () => {
         if (generation !== this.generation) return;
         this.baseline = true;
         this.connection = 'reconnecting';
-        this.error = '连接已断开，正在重连；保留上次状态';
+        this.error = t('source.disconnected');
         this.changed(true);
       };
     } catch (error) {
@@ -79,7 +86,7 @@ export class LiveSource extends EventTarget {
   }
 
   accept(data) {
-    if (data.mode && data.mode !== 'live') throw new Error('当前服务使用模拟数据，请以普通模式启动办公室');
+    if (data.mode && data.mode !== 'live') throw new Error(t('source.demoData'));
     if (data.source === 'harness' && this.kind !== 'harness') {
       this.kind = 'harness';
       this.storageKey = 'office.harness.live.root';
@@ -122,7 +129,7 @@ export class LiveSource extends EventTarget {
   select(rootId, keepFollow = false) {
     if (this.kind === 'harness') {
       const root = this.raw.roots?.find(root => root.id === rootId);
-      if (!root || this.directoryKey !== null && directoryKey(root.cwd) !== this.directoryKey) return Promise.resolve(false);
+      if (!root || (this.directoryKey !== null && directoryKey(root.cwd) !== this.directoryKey)) return Promise.resolve(false);
       this.directoryKey = directoryKey(root.cwd);
       localStorage.setItem('office.harness.live.directory', this.directoryKey);
     }
@@ -145,7 +152,11 @@ export class LiveSource extends EventTarget {
     }
     this.explicitRootId = null;
     this.follow = false;
-    try { return (await this.select(rootId)) !== false; } catch { return false; }
+    try {
+      return (await this.select(rootId)) !== false;
+    } catch {
+      return false;
+    }
   }
 
   selectDirectory(key) {
@@ -162,10 +173,14 @@ export class LiveSource extends EventTarget {
     if (this.records.has(key)) return this.records.get(key);
     const response = await fetch(officeUrl('api/report?' + new URLSearchParams({ sessionId, eventId })));
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || '读取原始记录失败');
+    if (!response.ok) throw new Error(data.error || t('source.recordReadFail'));
     this.records.set(key, data.text);
     return data.text;
   }
 
-  destroy() { this.generation++; this.abort?.abort(); this.source?.close(); }
+  destroy() {
+    this.generation++;
+    this.abort?.abort();
+    this.source?.close();
+  }
 }

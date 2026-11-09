@@ -1,7 +1,7 @@
 // High-quality office: same floor plan and behaviour as the 2D office
 // (office.js), rendered in 3D with Kenney's CC0 models (assets/kenney).
 // Bubbles and name tags are drawn by the 2D code on a canvas overlay.
-// Source file: `npm run build` bundles it with three.js into public/office3d.js.
+// Source file: `npm run build` bundles it with three.js into public/app.js、public/demo.js 的共享 chunk。
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -10,6 +10,8 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 
 const CHARACTERS = ['male-a', 'male-b', 'male-c', 'male-d', 'male-e', 'male-f',
   'female-a', 'female-b', 'female-c', 'female-d', 'female-e', 'female-f'];
+// 首屏只等 3 个角色，够放下初始 Agent；其余模型在首帧之后后台补齐。
+const HEAD_START_CHARACTERS = 3;
 const FURNITURE = ['desk', 'chairDesk', 'computerScreen', 'computerKeyboard', 'computerMouse', 'laptop',
   'pottedPlant', 'plantSmall1', 'plantSmall2', 'plantSmall3', 'kitchenCabinet', 'kitchenCoffeeMachine',
   'kitchenSink', 'kitchenFridgeLarge', 'kitchenMicrowave', 'stoolBar', 'tableRound', 'table',
@@ -140,11 +142,12 @@ export class Office3D extends window.Office {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     const get = (url) => new Promise((ok, fail) => loader.load(url, ok, undefined, fail));
-    const [chars, furn] = await Promise.all([
-      Promise.all(CHARACTERS.map((c) => get(`./assets/kenney/characters/character-${c}.glb`))),
+    // 首屏只等待前几个角色模型，其余在空闲时补齐，避免一次下载约 900 KB 的 GLB。
+    this.chars = new Array(CHARACTERS.length).fill(null);
+    const [furn] = await Promise.all([
       Promise.all(FURNITURE.map((f) => get(`./assets/kenney/furniture/${f}.glb`).then((g) => [f, g.scene]))),
+      this.loadCharacters(get, HEAD_START_CHARACTERS),
     ]);
-    this.chars = chars;
     this.models = Object.fromEntries(furn);
     if (this.sceneDef) {
       const extra = [...new Set(this.sceneDef.props.filter((p) => p.f && !this.models[p.f]).map((p) => p.f))];
@@ -160,6 +163,23 @@ export class Office3D extends window.Office {
       m.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     }
     this.loaded = true;
+    void this.loadCharacters(get, CHARACTERS.length - HEAD_START_CHARACTERS, HEAD_START_CHARACTERS);
+  }
+
+  /** 按批次加载角色模型；失败只让该角色缺席，不阻断整个办公室。 */
+  async loadCharacters(get, count, start = 0) {
+    const slots = [];
+    for (let i = start; i < Math.min(CHARACTERS.length, start + count); i++) slots.push(i);
+    await Promise.all(slots.map(async (i) => {
+      try { this.chars[i] = await get(`./assets/kenney/characters/character-${CHARACTERS[i]}.glb`); } catch { /* 单个模型缺失时退化到已有角色 */ }
+    }));
+  }
+
+  /** 取第 index 个角色模型；尚未下载完成时复用任意已加载角色。 */
+  charModel(index) {
+    const total = this.chars.length;
+    const slot = this.chars[((index % total) + total) % total];
+    return slot || this.chars.find(Boolean) || null;
   }
 
   // Place a furniture model so its footprint fills (x, y, w, d) on the floor
@@ -1159,7 +1179,8 @@ export class Office3D extends window.Office {
   actorFor(p) {
     let a = this.actors.get(p.key);
     if (a) return a;
-    const gltf = this.chars[p.h % this.chars.length];
+    const gltf = this.charModel(p.h ?? 0);
+    if (!gltf) return null;
     const obj = cloneSkinned(gltf.scene);
     obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     const box = new THREE.Box3().setFromObject(obj);
@@ -1214,6 +1235,7 @@ export class Office3D extends window.Office {
     }
     for (const p of this.people.values()) {
       const a = this.actorFor(p);
+      if (!a) continue;
       const st = this.stateOf(p);
       p.pose = st.pose;
       const anim = {

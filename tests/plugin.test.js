@@ -10,8 +10,12 @@ const { DemoWatcher } = require('../src/demo');
 test('宿主子路径支持同源嵌入、异步全文和相对静态资源，保留只读边界', async t => {
   const watcher = new DemoWatcher();
   watcher.fullText = async () => ({ text: '完整汇报\n'.repeat(1000) });
-  const server = createOfficeServer({ watcher, basePath: '/dsh-mutipleagent', defaultDocument: 'demo.html',
-    authorize: req => req.headers.cookie === 'test-owner=1' ? undefined : 401 });
+  const server = createOfficeServer({
+    watcher,
+    basePath: '/dsh-mutipleagent',
+    defaultDocument: 'demo.html',
+    authorize: req => (req.headers.cookie === 'test-owner=1' ? undefined : 401),
+  });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => server.closeOffice());
   const base = 'http://127.0.0.1:' + server.address().port;
@@ -34,18 +38,45 @@ test('宿主子路径支持同源嵌入、异步全文和相对静态资源，�
 test('插件路由拒绝未登录和非 owner，卸载后撤销路由及轮询', async t => {
   const plugin = require('../harness.cjs');
   const cleanups = [];
-  let route, removed = false;
-  const query = { listSessions: async () => [], readSession: async () => { throw Error('未找到会话'); }, readEvent: async () => { throw Error('未找到事件'); } };
+  let route,
+    removed = false;
+  const query = {
+    listSessions: async () => [],
+    readSession: async () => {
+      throw Error('未找到会话');
+    },
+    readEvent: async () => {
+      throw Error('未找到事件');
+    },
+  };
   plugin.apply({
     sessionQuery: query,
-    connection: { admit: req => req.headers.cookie === 'owner=1' ? { peer: { principal: { kind: 'owner' } } } :
-      req.headers.cookie === 'guest=1' ? { peer: { principal: { kind: 'guest' } } } : { rejection: 401 } },
-    webServer: { register: value => { route = value; return () => { removed = true; }; } },
-    effect: callback => { cleanups.push(callback()); },
+    connection: {
+      admit: req =>
+        req.headers.cookie === 'owner=1'
+          ? { peer: { principal: { kind: 'owner' } } }
+          : req.headers.cookie === 'guest=1'
+            ? { peer: { principal: { kind: 'guest' } } }
+            : { rejection: 401 },
+    },
+    webServer: {
+      register: value => {
+        route = value;
+        return () => {
+          removed = true;
+        };
+      },
+    },
+    effect: callback => {
+      cleanups.push(callback());
+    },
   });
   const server = http.createServer((req, res) => route.handler(req, res));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  t.after(() => { cleanups.reverse().forEach(dispose => dispose()); server.close(); });
+  t.after(() => {
+    cleanups.reverse().forEach(dispose => dispose());
+    server.close();
+  });
   const url = 'http://127.0.0.1:' + server.address().port + '/dsh-mutipleagent/api/health';
   assert.equal((await fetch(url)).status, 401);
   assert.equal((await fetch(url, { headers: { cookie: 'guest=1' } })).status, 403);
@@ -59,17 +90,40 @@ test('客户端通过同名原生侧栏与主面板注册，卸载释放注册�
   const styles = [];
   const registrations = [];
   const cleanups = [];
-  const document = { createElement: () => ({ remove() { styles.splice(styles.indexOf(this), 1); } }), head: { appendChild: node => styles.push(node) } };
+  const document = {
+    createElement: () => ({
+      remove() {
+        styles.splice(styles.indexOf(this), 1);
+      },
+    }),
+    head: { appendChild: node => styles.push(node) },
+  };
   vm.runInNewContext(fs.readFileSync(require.resolve('../client.js'), 'utf8'), {
-    window: { __ModuleLoader__: { load: value => { module = value; } } }, document,
+    window: {
+      __ModuleLoader__: {
+        load: value => {
+          module = value;
+        },
+      },
+    },
+    document,
   });
   assert.equal(module.id, 'dsh-mutipleagent');
-  const plugin = module.factory(name => { assert.equal(name, 'react'); return { createElement() {} }; });
+  const plugin = module.factory(name => {
+    assert.equal(name, 'react');
+    return { createElement() {} };
+  });
   plugin.apply({
-    effect: callback => { cleanups.push(callback()); },
+    effect: callback => {
+      cleanups.push(callback());
+    },
     slots: {
       inject: (_name, callback) => callback(),
-      register: (options, component) => { const value = { options, component }; registrations.push(value); return () => registrations.splice(registrations.indexOf(value), 1); },
+      register: (options, component) => {
+        const value = { options, component };
+        registrations.push(value);
+        return () => registrations.splice(registrations.indexOf(value), 1);
+      },
     },
   });
   assert.equal(registrations.find(row => row.options.name === 'main').options.key, 'dsh-mutipleagent');

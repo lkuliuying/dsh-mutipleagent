@@ -3,12 +3,14 @@ const assert = require('node:assert/strict');
 
 test('Windows 目录按完整路径合并大小写和分隔符，同名不同路径保持独立', async () => {
   const { directoryKey, directoryGroups, directorySessions } = await import('../web/session-selection.mjs');
-  const roots = [{ id: 'one', cwd: 'F:\\Program\\Agent\\' }, { id: 'two', cwd: 'f:/program/agent' },
-    { id: 'three', cwd: 'D:/Program/Agent' }, { id: 'four' }];
+  const roots = [{ id: 'one', cwd: 'F:\\Program\\Agent\\' }, { id: 'two', cwd: 'f:/program/agent' }, { id: 'three', cwd: 'D:/Program/Agent' }, { id: 'four' }];
   const groups = directoryGroups(roots);
   assert.equal(groups.length, 3);
   assert.deepEqual(groups[0], { key: 'f:/program/agent', path: 'F:\\Program\\Agent\\', count: 2 });
-  assert.deepEqual(directorySessions(roots, groups[0].key).map(root => root.id), ['one', 'two']);
+  assert.deepEqual(
+    directorySessions(roots, groups[0].key).map(root => root.id),
+    ['one', 'two'],
+  );
   assert.equal(groups[2].path, '未记录工作目录');
   assert.equal(directoryKey('\\\\SERVER\\Work\\'), directoryKey('//server/work'));
   assert.notEqual(directoryKey('/Work/Agent'), directoryKey('/work/agent'));
