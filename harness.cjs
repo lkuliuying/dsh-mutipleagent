@@ -22,7 +22,8 @@ exports.apply = function apply(ctx) {
     let unregister;
     try {
       unregister = ctx.webServer.register({
-        kind: 'prefix', path: '/dsh-mutipleagent',
+        kind: 'prefix',
+        path: '/dsh-mutipleagent',
         handler(req, res) {
           // 保留目录尾斜线，保证相对资源在 Web 和 Desktop 代理中一致。
           const url = new URL(req.url, 'http://localhost');
@@ -36,9 +37,13 @@ exports.apply = function apply(ctx) {
       });
       watcher.start();
     } catch (error) {
-      unregister?.(); server.closeOffice();
+      unregister?.();
+      server.closeOffice();
       throw error;
     }
-    return () => { unregister(); server.closeOffice(); };
+    return () => {
+      unregister();
+      server.closeOffice();
+    };
   }, 'dsh-mutipleagent: office route and session observer');
 };

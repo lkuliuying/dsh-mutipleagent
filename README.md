@@ -1,38 +1,49 @@
 # dsh-mutipleagent
 
+[![ci](https://github.com/lkuliuying/dsh-mutipleagent/actions/workflows/ci.yml/badge.svg)](https://github.com/lkuliuying/dsh-mutipleagent/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+[English](README.en.md) · 简体中文
+
 DeepSeek Harness 多 Agent 3D 协作办公室插件。安装后从 Harness 侧栏的「多 Agent 办公室」打开，观察真实主会话、子 Agent、工具活动和完整汇报，沿用本项目已有的 3D 场景与交互。
 
-当前版本为 `v0.1.3`，包名为 `dsh-mutipleagent`，仓库地址为 [lkuliuying/dsh-mutipleagent](https://github.com/lkuliuying/dsh-mutipleagent)。当前兼容目标是 Harness `0.2.2-rc.1`，需要 Node.js `^22.19.0 || >=24.0.0`。
+**只读**：不启动任务、不调用模型、不审批、不修改会话，也不把任何内容发到本机以外。
+
+![3D 办公室全景](https://raw.githubusercontent.com/lkuliuying/dsh-mutipleagent/main/assets/screenshots/demo-office.jpg)
+
+| 任务详情 | 协作动态 |
+| --- | --- |
+| ![任务详情](https://raw.githubusercontent.com/lkuliuying/dsh-mutipleagent/main/assets/screenshots/demo-task-detail.jpg) | ![协作动态](https://raw.githubusercontent.com/lkuliuying/dsh-mutipleagent/main/assets/screenshots/demo-notifications.jpg) |
+
+以上为 `npm run screenshots` 生成的演示画面（演示数据，非真实会话）。
+
+当前版本为 `v0.2.0`，包名为 `dsh-mutipleagent`，仓库地址为 [lkuliuying/dsh-mutipleagent](https://github.com/lkuliuying/dsh-mutipleagent)。当前兼容目标是 Harness `0.2.2-rc.1`，需要 Node.js `^22.19.0 || >=24.0.0`。
 
 各版本变化见 [CHANGELOG.md](CHANGELOG.md)，发布说明见 [GitHub Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases)。
 
-## v0.1.3 更新
+## v0.2.0 更新
 
-- 3D 办公室：角色入座、面向显示器并敲键盘/动鼠标；屏幕显示当前状态与最近事件；主/子 Agent 之间的任务和汇报以“屏幕到屏幕”的光点流线呈现。
-- 点击任意工位显示器可打开屏幕详情：真实 Agent、状态、任务、模型/工具与最近事件；支持 Esc、遮罩和关闭按钮，移动端改为可读文本布局。
-- 顶部「模式」改为下拉选择真实会话/演示会话，与目录、会话下拉同一交互，但不需要搜索。
-- 通知中心重做：红点按已读锚点消除，新增「全部已读」、分类图标与更清晰的三行摘要；窄屏也保留入口。
-- 墙面标识改为「DSH 控制」「Agent 协作」，中文字体自适应，不再裁切。
-- 根会话上限从 60 提升到 500，按创建时间倒序；超过上限会提示总数。
-- 搜索支持跨目录会话标题，选中后自动切换目录并清理查询；修复跨目录打开时的假错误提示、390px 搜索结果被遮挡等问题。
+- 中英双语界面，默认跟随系统语言，顶栏可切换。
+- 渲染与读取都提速：首屏只等家具和 3 个角色，`app.js` 从 731.6 KB 降到 13.2 KB（共享 chunk + gzip），会话没有新事件时不再重复折叠。
+- 静态资源支持 `ETag` / `304` 与 gzip；没有页面连接时停止轮询，打开即刷新。
+- `/api/health` 增加版本、运行时长、客户端数、读取耗时与轮询状态。
+- 工程化：ESLint、Prettier、`.gitattributes`、CI（Node 22.19 / 24 + 浏览器验收 + 构建产物一致性）、`npm run release` 一键发布。
+- 修正演示模式下 `/api/health` 报错、模型未加载完成时的空引用等问题。
 
-验证：76 项单元测试、25 项浏览器验收、Harness `0.2.2-rc.1` 实际 SDK 的隔离加载检查通过。
-
-更早版本（v0.1、v0.1.1、v0.1.2）的变化见 [CHANGELOG.md](CHANGELOG.md)。
-
+完整变更（含 v0.1～v0.1.3）见 [CHANGELOG.md](CHANGELOG.md)，发布说明见 [Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases)。
 ## 安装到 Harness
 
 ### 线上安装与更新
 
 完全退出 Harness Desktop，在 PowerShell 运行以下命令，再重新启动 Harness：
 
-    dsh plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.1.3' --ignore-scripts
+    dsh plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.2.0' --ignore-scripts
 
 如果终端没有 `dsh` 命令，可使用 Desktop 随附的 CLI：
 
-    & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.1.3' --ignore-scripts
+    & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.2.0' --ignore-scripts
 
-上述命令既可首次安装，也可将原来固定在 `v0.1`、`v0.1.1` 或 `v0.1.2` 的安装切换到 `v0.1.3`。安装源固定到具体标签，后续升级需改为目标版本的标签；仅重启不会切换版本。
+上述命令既可首次安装，也可把原来固定在 `v0.1`～`v0.1.3` 的安装切换到 `v0.2.0`。安装源固定到具体标签，后续升级需改为目标版本的标签；仅重启不会切换版本。
 
 ### 从本地源码打包
 
@@ -45,11 +56,11 @@ DeepSeek Harness 多 Agent 3D 协作办公室插件。安装后从 Harness 侧�
 
 退出 Harness Desktop 后，安装本地包；路径按实际位置调整：
 
-    dsh plugin --profile desktop add "F:\Program\Multiple-Agent\.artifacts\dsh-mutipleagent-0.1.3.tgz"
+    dsh plugin --profile desktop add "F:\Program\Multiple-Agent\.artifacts\dsh-mutipleagent-0.2.0.tgz"
 
 如果终端没有 `dsh` 命令，可使用 Desktop 随附的 CLI，例如 PowerShell：
 
-    & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'F:\Program\Multiple-Agent\.artifacts\dsh-mutipleagent-0.1.3.tgz'
+    & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'F:\Program\Multiple-Agent\.artifacts\dsh-mutipleagent-0.2.0.tgz'
 
 重启 Harness，在侧栏选择「多 Agent 办公室」。不需要单独运行办公室服务，也不需要设置 API Key。插件从 `sessionQuery` 公开接口读取会话，不读取 `.codex`、凭据或私有推理。
 
@@ -149,7 +160,7 @@ http://127.0.0.1:4317
 
 如希望新 Codex 项目任务默认并行协作，可以自行在用户级 ~/.codex/AGENTS.md 中规定“主 Agent 统筹，独立工作交给 2～3 个子 Agent，收集真实汇报后汇总”。实际执行仍受会话权限、更高优先级指令和任务是否可拆分约束。观察页面本身不会修改规则或强制 Codex 生成子 Agent。
 
-视觉核对与交互验收见 design-qa.md。
+视觉核对与交互验收见 [docs/design-qa.md](docs/design-qa.md)。
 
 ### 原版办公室演示
 
@@ -186,6 +197,35 @@ Agent 包含 id、parentId、rootId、状态、任务记录和汇报记录；Col
 - 不读取私有推理、系统消息、开发者消息或凭据；任务与汇报中用户自己提供的内容按原文展示。
 - 本轮主 Agent 的最终结束状态需等本轮交付回复落盘后才能观察；结束与总结路径另由解析测试和浏览器演示验证。
 
+## 常见问题
+
+**打开后团队里只有一个主 Agent？**
+插件只显示真实存在过的子 Agent。需要在 Harness 会话里明确要求并行分工（例如"起两个只读子 Agent 分别检查接口和测试"），并且该会话确实产生了 `spawn_agent` 及后续事件。演示模式（顶部「模式」→「演示会话」）不含真实数据，仅用于看交互。
+
+**界面上的数字和我在会话里看到的不一致？**
+日志按消息块落盘，不是逐字同步；服务约每秒检查一次已知会话、约每五秒发现新会话。百分比与完成数只认已记录事件，缺记录时显示「未记录」，子 Agent 结束也不会把主任务标成完成。
+
+**会把我的会话内容上传吗？**
+不会。服务只监听 `127.0.0.1`，所有接口都是 `GET`，没有遥测、外部字体或 CDN；详细边界见 [SECURITY.md](SECURITY.md)。
+
+**Web 版 Harness 能用吗？**
+可以。面板走宿主的 `/dsh-mutipleagent/` 同源路由，会话接口沿用 Harness 登录校验，仅 owner 可访问。
+
+**没有 WebGL 或显卡较弱？**
+页面会自动降级为团队树、活动记录与汇报列表，功能不丢；也可勾选「减少动画」。
+
+**端口 4317 被占用？**
+`node src/server.js --port 4320 --open`，或者直接改用插件面板（走宿主编排，不占用固定端口）。
+
+**怎么更新到新版本？**
+在插件市场更新，或按下方「线上安装与更新」把命令里的 tag 换成目标版本；只重启不会切换版本。
+
+## 参与贡献
+
+- 开发与测试约定见 [CONTRIBUTING.md](CONTRIBUTING.md)
+- 安全问题请走私密通道，见 [SECURITY.md](SECURITY.md)
+- 版本变化见 [CHANGELOG.md](CHANGELOG.md)
+
 ## 开发与验证
 
 依赖与上游锁定版本一致；锁文件中的下载地址已统一为 npm 官方 registry。
@@ -193,9 +233,25 @@ Agent 包含 id、parentId、rootId、状态、任务记录和汇报记录；Col
     npm ci
     npm run build
     npm test
-    npm run test:ui
 
-构建使用 esbuild 和 Three.js。测试使用 Node 内置测试框架；浏览器测试使用已安装的 Google Chrome 和 Playwright，在隔离模拟数据上检查实际 WebGL、交互、响应式布局及无 WebGL 降级。测试不会读取你的真实历史。
+提交前建议跑完整闸门（CI 同样执行）：
+
+    npm run lint
+    npm run format:check
+    npm run check:compat
+    npm test
+
+构建使用 esbuild（代码分割，three.js 打进共享 chunk）和 Three.js。测试使用 Node 内置测试框架；浏览器测试使用已安装的 Google Chrome 和 Playwright，在隔离模拟数据上检查实际 WebGL、交互、响应式布局及无 WebGL 降级。测试不会读取你的真实历史。
+
+README 里的截图由演示数据生成，可随时重跑：
+
+    npm run screenshots
+
+发布新版本（维护者）：
+
+    npm run release -- 0.2.0
+
+脚本会要求 `CHANGELOG.md` 先有对应段落，然后依次跑 lint、格式检查、构建、兼容自检和测试，最后提交并打 tag；推 tag 后由 GitHub Actions 创建 Release。
 
 真实接入检查需要显式给出一个主会话 ID：
 

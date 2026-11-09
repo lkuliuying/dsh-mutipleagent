@@ -2,6 +2,40 @@
 
 本文件记录 `dsh-mutipleagent` 每个版本的变化。npm 版本号与 Git 标签一一对应（`0.1.x` ↔ `v0.1.x`），同一份说明也会发布在 [GitHub Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases) 页面，插件市场里的版本说明同样读取这些 release 正文。
 
+## v0.2.0 — 2026-11-10
+
+更快、更省，双语界面与可复现的工程流程；功能与 v0.1.3 一致。
+
+### 新增
+
+- 中英双语界面：默认跟随系统语言，顶栏可切换，选择保存在本地。
+- `/api/health` 返回版本、运行时长、客户端数、会话/成员数、revision、上次读取耗时与轮询状态，便于排查"数据没动"。
+- 静态资源支持 `ETag` / `304` 与 gzip，首次加载后可复用缓存。
+- `npm run screenshots`：用演示数据自动生成 README 与插件市场截图，并写 `screenshots.json`。
+- 安全与协作文件：`SECURITY.md`、`CONTRIBUTING.md`、issue / PR 模板、英文 `README.en.md`。
+
+### 改进
+
+- 轮询按需：没有页面连接也没有 SSE 订阅时不再定时读会话；页面打开或客户端接入时立即刷新。
+- 折叠结果按日志指纹复用：会话事件没有新增时不再每秒重新折叠全部团队。
+- 构建改用 esbuild 代码分割，`three.js` 只打一份共享 chunk：`public/app.js` 从 731.6 KB 降到 13.2 KB（gzip 5.1 KB），`public/demo.js` 从 814 KB 降到 84.5 KB（gzip 26.3 KB）。
+- 3D 首屏只等家具与前 3 个角色，其余模型后台补齐，单个模型失败也不再阻塞场景。
+- 响应头补充 `referrer-policy`、`permissions-policy`、`cross-origin-resource-policy`，CSP 追加 `object-src 'none'` 与 `form-action 'none'`；面板 iframe 改用 `no-referrer`，并写明同源沙箱的取舍。
+- 仓库工程化：`.gitattributes`、ESLint、Prettier、`npm run check:compat`、GitHub Actions（Node 22.19 与 24 矩阵、浏览器验收、构建产物一致性、发布包清单）与 `npm run release` 一键发布。
+- `engines.dsh` 由 `0.2.2-rc.1` 放宽为 `^0.2.2-rc.1`，同一 minor 内的新预发布不再被判为不兼容。
+- 文档：`design-qa.md` 移入 `docs/`；README 增加截图、FAQ 与贡献入口。
+
+### 修复
+
+- 修复演示模式下 `/api/health` 抛错的问题（`status()` 与基类的 Agent 状态写入方法重名）。
+- 修复 `src/codex.js` 中报告调用的无用赋值（ESLint `no-unused-vars`）。
+- 修复模型未加载完成时 `actorFor()` 取到空角色导致的潜在空引用。
+- 修正 `vendor/office3d.js` 里过时的打包注释。
+
+### 验证
+
+78 项单元测试（行覆盖 92.7%）、lint / 格式 / 兼容自检通过；CI 在 Node 22.19 与 24 上运行单元测试与覆盖率门槛，并在浏览器里跑 WebGL 与插件面板验收。
+
 ## 未发布
 
 - 无。
