@@ -2,6 +2,7 @@ import { DemoScene } from './demo-scene.js';
 import { LiveSource } from './live-source.mjs';
 import { applyOfficeBrand, officePage } from './base-url.mjs';
 import { directoryGroups, directorySessions, sessionLabel } from './session-selection.mjs';
+import { enhanceSelect, bindSearchNavigation, closeOfficeControls } from './office-controls.js';
 
 export function startLiveOffice() {
   const $ = id => document.getElementById(id);
@@ -22,6 +23,11 @@ export function startLiveOffice() {
   let data = source.snapshot, selectedId = null, scene = null, capacity = 0, query = '', history = false, brandSource = null;
   let seen = new Set(), lastRoot = null, pinSignature = '', queueSignature = '', rootSignature = '', eventSignature = '';
   let toastTimer, recordToken = 0, sceneFailed = false;
+  const directoryPicker = enhanceSelect($('workspace-directory')), scenarioPicker = enhanceSelect($('scenario'));
+  let teamDirectoryPicker = null;
+  const searchNavigation = bindSearchNavigation({ input: $('task-search'), form: $('search-form'),
+    results: $('search-results'), list: $('search-result-list'), status: $('search-status'), clear: $('clear-search'),
+    onClear: () => $('clear-search').click(), onOpen: search });
   let pendingAnimations = [];
   const agents = () => data.agents.filter(s => history || !s.historical);
   const selected = () => data.agents.find(s => s.id === selectedId) || agents()[0] || empty;
@@ -43,6 +49,7 @@ export function startLiveOffice() {
     selectedId = id; recordToken++; details(true); render(); scene?.select(id, focus);
   }
   function showText(title, text, image = selected().icon) {
+    closeOfficeControls(); teamDirectoryPicker?.destroy(); teamDirectoryPicker = null;
     $('dialog-title').textContent = title; $('dialog-content').textContent = text;
     $('dialog-icon').src = './demo-icons/' + image + '.svg'; $('copy-demo-report').textContent = '复制内容';
     if (!$('demo-dialog').open) $('demo-dialog').showModal();
@@ -73,11 +80,13 @@ export function startLiveOffice() {
     }
     if (source.kind === 'harness') {
       const field = node('label', 'session-picker-field'), selector = node('select');
+      selector.id = 'team-workspace-directory'; field.htmlFor = selector.id;
       field.append(node('span', '', '工作目录'), selector);
       selector.setAttribute('aria-label', '团队窗口工作目录');
       fillDirectories(selector);
       selector.onchange = event => { source.selectDirectory(event.target.value); teamPicker(); };
       content.append(field);
+      teamDirectoryPicker = enhanceSelect(selector);
     }
     content.append(node('strong', '', source.kind === 'harness' ? '当前目录的会话' : '主会话'));
     for (const root of visibleRoots()) {
@@ -127,14 +136,14 @@ export function startLiveOffice() {
     if (!list.length) $('task-queue').append(node('div', 'queue-empty', '没有匹配的任务'));
   }
   function search() {
-    const results = $('search-results'); results.replaceChildren(); results.hidden = !query; $('clear-search').hidden = !query;
-    if (!query) return;
-    for (const s of agents().filter(matches)) {
+    const results = $('search-result-list'); results.replaceChildren();
+    for (const s of query ? agents().filter(matches) : []) {
       const button = node('button', 'search-result'), text = node('span');
+      button.type = 'button'; button.dataset.value = s.id;
       text.append(node('strong', '', s.name + ' · ' + s.title), node('small', '', s.file)); button.append(icon(s.icon), text);
-      button.onclick = () => { select(s.id); results.hidden = true; $('task-search').blur(); }; results.append(button);
+      button.onclick = () => { select(s.id); $('task-search').focus(); searchNavigation.close(); }; results.append(button);
     }
-    if (!results.children.length) results.append(node('div', 'queue-empty', '没有匹配的任务或 Agent'));
+    searchNavigation.refresh();
   }
   function renderEvents() {
     const events = data.events.slice(-40).reverse(), signature = JSON.stringify(events);
@@ -161,25 +170,36 @@ export function startLiveOffice() {
     const harness = source.kind === 'harness';
     $('directory-field').hidden = !harness;
     $('directory-field').parentElement.classList.toggle('harness-picker', harness);
-    if (harness) fillDirectories($('workspace-directory'));
+    if (harness) {
+      fillDirectories($('workspace-directory'));
+      if (teamDirectoryPicker) { fillDirectories($('team-workspace-directory')); teamDirectoryPicker.refresh(); }
+    }
     const roots = visibleRoots();
     $('scenario').replaceChildren(...roots.map(root => {
-      const option = node('option', '', harness ? sessionLabel(root) : root.title || root.id); option.value = root.id; return option;
+      const option = node('option', '', harness ? sessionLabel(root) : root.title || root.id); option.value = root.id;
+      option.dataset.label = root.title?.replace(/\s+/g, ' ').trim() || '未命名会话';
+      option.dataset.description = sessionLabel(root).split(' · ').slice(-2).join(' · ');
+      option.dataset.search = [root.title, sessionLabel(root), root.id].join(' '); return option;
     }));
-    if (!roots.length) $('scenario').append(node('option', '', '尚未发现 ' + host() + ' 会话'));
+    if (!roots.length) {
+      const option = node('option', '', '尚未发现 ' + host() + ' 会话'); option.value = ''; $('scenario').append(option);
+    }
     $('scenario').value = data.rootId || '';
     $('scenario').disabled = !roots.length;
     $('scenario').title = $('scenario').selectedOptions[0]?.textContent || '';
+    scenarioPicker.refresh();
   }
   function fillDirectories(selector) {
     const groups = directoryGroups(data.roots);
     selector.replaceChildren(...groups.map(group => {
-      const option = node('option', '', group.path + ' (' + group.count + ')'); option.value = group.key; return option;
+      const option = node('option', '', group.path + ' (' + group.count + ')'); option.value = group.key;
+      option.dataset.label = group.path; option.dataset.description = group.count + ' 个会话'; return option;
     }));
-    if (!groups.length) selector.append(node('option', '', '尚未发现工作目录'));
+    if (!groups.length) { const option = node('option', '', '尚未发现工作目录'); option.value = ''; selector.append(option); }
     selector.disabled = !groups.length;
-    selector.value = source.directoryKey ?? '';
+    selector.value = groups.length ? source.directoryKey ?? '' : '';
     selector.title = groups.find(group => group.key === source.directoryKey)?.path || '';
+    if (selector === $('workspace-directory')) directoryPicker.refresh();
   }
   function renderPins() {
     const signature = JSON.stringify(agents().map(s => [s.id, s.name, s.zone]));
@@ -288,6 +308,9 @@ export function startLiveOffice() {
   $('view-report').onclick = () => showTask(); $('view-task').onclick = () => showTask(true);
   $('current-task-button').onclick = () => { details(true); showTask(); };
   $('close-demo-dialog').onclick = () => { recordToken++; $('demo-dialog').close(); };
+  $('demo-dialog').addEventListener('close', () => {
+    if (!$('demo-dialog').open) { teamDirectoryPicker?.destroy(); teamDirectoryPicker = null; }
+  });
   $('copy-demo-report').onclick = async () => {
     try { await navigator.clipboard.writeText($('dialog-content').textContent); $('copy-demo-report').textContent = '已复制'; }
     catch { toast('复制未完成，请手动选择正文。'); }
@@ -301,23 +324,22 @@ export function startLiveOffice() {
   $('task-search').oninput = event => { query = event.target.value.trim(); renderQueue(); search(); };
   $('task-search').onfocus = search;
   $('clear-search').onclick = () => { query = ''; $('task-search').value = ''; renderQueue(); search(); $('task-search').focus(); };
-  $('search-form').onsubmit = event => { event.preventDefault(); const first = agents().find(matches); if (first && query) { select(first.id); $('search-results').hidden = true; $('task-search').blur(); } };
   $('notifications-button').onclick = () => { const show = $('notifications').hidden; $('notifications').hidden = !show; $('notifications-button').setAttribute('aria-expanded', show); };
   $('show-team').onclick = $('team-picker').onclick = teamPicker;
   $('dock-toggle').onclick = () => { const expanded = $('workflow-dock').classList.toggle('expanded'); $('dock-toggle').setAttribute('aria-expanded', expanded); };
   for (const button of document.querySelectorAll('.stage')) button.onclick = () => toast('当前记录阶段：' + stages[data.stage] + '；任务由 ' + host() + ' 执行');
   $('demo-reduced').checked = localStorage.getItem('office.demo.reduced') === 'true' || matchMedia('(prefers-reduced-motion: reduce)').matches;
-  $('demo-reduced').onchange = event => { localStorage.setItem('office.demo.reduced', event.target.checked); scene?.setReduced(event.target.checked); };
+  document.body.dataset.reducedMotion = String($('demo-reduced').checked);
+  $('demo-reduced').onchange = event => { localStorage.setItem('office.demo.reduced', event.target.checked); document.body.dataset.reducedMotion = String(event.target.checked); scene?.setReduced(event.target.checked); };
   document.addEventListener('keydown', event => {
     if (event.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) && !$('demo-dialog').open) { event.preventDefault(); $('task-search').focus(); }
   });
   document.addEventListener('click', event => {
-    if (!event.target.closest('.search-wrap')) $('search-results').hidden = true;
     if (!event.target.closest('#notifications') && !event.target.closest('#notifications-button')) { $('notifications').hidden = true; $('notifications-button').setAttribute('aria-expanded', 'false'); }
   });
   document.addEventListener('visibilitychange', () => { if (scene) scene.visible = !document.hidden && !scene.loadError; });
   details(innerWidth > 1050 && innerHeight > 820); render({ baseline: true });
   source.addEventListener('change', event => render(event.detail)); source.connect();
   const timer = setInterval(() => { if (!document.hidden) render(); }, 1000);
-  window.addEventListener('beforeunload', () => { clearInterval(timer); clearTimeout(toastTimer); source.destroy(); scene?.destroy(); });
+  window.addEventListener('beforeunload', () => { clearInterval(timer); clearTimeout(toastTimer); directoryPicker.destroy(); scenarioPicker.destroy(); teamDirectoryPicker?.destroy(); searchNavigation.destroy(); source.destroy(); scene?.destroy(); });
 }

@@ -8,6 +8,34 @@ const { createOfficeServer } = require('../src/server');
 const { DemoWatcher } = require('../src/demo');
 const { CodexWatcher } = require('../src/codex');
 
+async function openPicker(frame, id, touch = false) {
+  const trigger = frame.locator('#' + id + '-trigger');
+  if (touch) await trigger.tap(); else await trigger.click();
+  const panel = frame.locator('#' + id + '-popover');
+  await panel.waitFor({ state: 'visible' });
+  await panel.evaluate(element => Promise.all(element.getAnimations({ subtree: true }).map(animation => animation.finished)));
+  assert.equal(await frame.locator('#' + id + '-trigger').getAttribute('aria-expanded'), 'true');
+  assert.equal(await panel.locator('.select-filter-input').evaluate(input => input === document.activeElement), true);
+  return panel;
+}
+
+async function choosePicker(frame, id, value, query = '') {
+  const panel = await openPicker(frame, id);
+  if (query) await panel.locator('.select-filter-input').fill(query);
+  const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  await panel.locator('[role="option"][data-value="' + escaped + '"]').click();
+  await panel.waitFor({ state: 'hidden' });
+  await frame.waitForFunction(([key, selected]) => document.getElementById(key).value === selected, [id, value]);
+}
+
+async function assertPanelWithinViewport(panel) {
+  assert.ok(await panel.evaluate(element => {
+    const bounds = element.getBoundingClientRect();
+    return bounds.width > 0 && bounds.height > 0 && bounds.left >= 0 && bounds.right <= innerWidth + 1 &&
+      bounds.top >= 0 && bounds.bottom <= innerHeight + 1 && element.scrollWidth <= element.clientWidth + 1;
+  }), '下拉面板应在视口内，长内容不能造成横向溢出');
+}
+
 // 仅使用内存夹具，验证插件挂载后的真实模式界面，不读取用户会话。
 class HarnessFixture extends DemoWatcher {
   constructor() {
@@ -80,16 +108,31 @@ class HarnessFixture extends DemoWatcher {
     assert.equal((await frame.locator('.brand').innerText()).replace(/\s/g, ''), 'DSHOffice');
     assert.equal(await frame.locator('#metric-assigned').innerText(), '2');
     assert.equal(await frame.locator('.scene-pin').count(), 3);
-    assert.equal(await frame.locator('#workspace-directory').isVisible(), true);
-    const directories = await frame.locator('#workspace-directory option').evaluateAll(options => options.map(option => ({ value: option.value, text: option.textContent })));
+    assert.equal(await frame.locator('#workspace-directory-trigger').isVisible(), true);
+    let panel = await openPicker(frame, 'workspace-directory');
+    const directories = await panel.locator('[role="option"]').evaluateAll(options => options.map(option => ({ value: option.dataset.value, text: option.textContent })));
     assert.equal(directories.length, 4, '同一 Windows 目录的大小写和分隔符变化应合并');
     const agentDirectory = directories.find(option => /F:\\Projects\\Agent/i.test(option.text));
     const algorithmDirectory = directories.find(option => option.text.includes('F:\\Projects\\Algorithm'));
     const archivedDirectory = directories.find(option => option.text.includes('G:\\Archive\\Algorithm'));
     assert.ok(agentDirectory && algorithmDirectory && archivedDirectory, '同名目录应展示完整路径以区分');
     assert.ok(directories.some(option => option.text.includes('未记录')));
+    assert.ok((await frame.locator('#workspace-directory-trigger').getAttribute('aria-label')).includes('F:\\Projects\\Agent'), '目录触发器的可访问名称应包含当前路径');
+    assert.equal(await panel.locator('[role="option"][aria-selected="true"]').getAttribute('data-value'), agentDirectory.value);
+    await assertPanelWithinViewport(panel);
+    await panel.locator('.select-filter-input').fill('没有这个工作目录');
+    assert.equal(await panel.locator('[role="option"]').count(), 0);
+    assert.match(await panel.innerText(), /没有|无匹配|未找到/);
+    await panel.locator('.select-filter-clear').focus();
+    await panel.locator('.select-filter-clear').press('Enter');
+    assert.equal(await panel.locator('.select-filter-input').inputValue(), '');
+    assert.equal(await frame.locator('#workspace-directory').inputValue(), agentDirectory.value, '清除筛选按钮上的 Enter 只能清空筛选，不能选择选项');
+    await panel.locator('.select-filter-input').fill('没有这个工作目录');
+    await panel.locator('.select-filter-input').press('Escape');
+    assert.equal(await frame.locator('#workspace-directory-trigger').evaluate(button => button === document.activeElement), true);
     assert.equal(await frame.locator('#workspace-directory').inputValue(), agentDirectory.value);
-    const sessions = await frame.locator('#scenario option').evaluateAll(options => options.map(option => ({ value: option.value, text: option.textContent })));
+    panel = await openPicker(frame, 'scenario');
+    const sessions = await panel.locator('[role="option"]').evaluateAll(options => options.map(option => ({ value: option.dataset.value, text: option.textContent })));
     assert.deepEqual(new Set(sessions.map(option => option.value)), new Set(['demo-main', 'history-main']));
     assert.equal(new Set(sessions.map(option => option.text)).size, 2, '同名会话应显示不同的时间与短 ID');
     for (const option of sessions) {
@@ -97,6 +140,15 @@ class HarnessFixture extends DemoWatcher {
       assert.ok(option.text.includes(option.value.slice(-8)));
       assert.match(option.text, /\d{4}/, '会话选项应包含日期');
     }
+    assert.ok((await frame.locator('#scenario-trigger').getAttribute('aria-label')).includes('接口与回归检查'), '会话触发器的可访问名称应包含当前标题');
+    await panel.locator('.select-filter-input').press('End');
+    assert.equal(await panel.locator('[role="option"][data-active="true"]').getAttribute('data-value'), 'history-main');
+    await panel.locator('.select-filter-input').press('Home');
+    assert.equal(await panel.locator('[role="option"][data-active="true"]').getAttribute('data-value'), 'demo-main');
+    await panel.locator('.select-filter-input').press('ArrowDown');
+    assert.equal(await panel.locator('[role="option"][data-active="true"]').getAttribute('data-value'), 'history-main');
+    await panel.locator('.select-filter-input').press('Escape');
+    assert.equal(await frame.locator('#scenario').inputValue(), 'demo-main', '取消下拉不能更改当前会话');
     assert.equal(await frame.locator('.office-gl').count(), 1);
     assert.ok(await frame.evaluate(() => {
       const gl = document.querySelector('.office-gl').getContext('webgl2');
@@ -107,11 +159,33 @@ class HarnessFixture extends DemoWatcher {
     assert.equal((await context.cookies(base)).find(value => value.name === 'fixture-owner').httpOnly, true);
     assert.equal(await frame.evaluate(() => document.cookie), '');
 
+    const inputWidth = (await frame.locator('#task-search').boundingBox()).width;
+    await frame.locator('#task-search').fill('·');
+    assert.equal(await frame.locator('.search-result').count(), 3);
+    assert.match(await frame.locator('#search-status').innerText(), /3/);
+    await frame.locator('#task-search').press('End');
+    assert.equal(await frame.locator('.search-result[data-active="true"]').count(), 1);
+    assert.match(await frame.locator('.search-result[data-active="true"]').innerText(), /夏 · 测试审阅/);
+    const activeResultId = await frame.locator('.search-result[data-active="true"]').getAttribute('id');
+    assert.equal(await frame.locator('#task-search').getAttribute('aria-activedescendant'), activeResultId);
+    await frame.locator('#task-search').press('Enter');
+    assert.equal(await frame.locator('#detail-name').innerText(), '夏 · 测试审阅', JSON.stringify(await frame.evaluate(() => ({
+      focused: document.activeElement.id,
+      active: document.querySelector('.search-result[data-active="true"]')?.textContent,
+      expanded: document.getElementById('task-search').getAttribute('aria-expanded')
+    }))));
+    assert.equal(await frame.locator('#search-results').isHidden(), true, '选择搜索结果后应收起结果列表');
     await frame.locator('#task-search').fill('林');
+    await frame.locator('#task-search').dispatchEvent('compositionstart');
+    await frame.locator('#task-search').press('Enter');
+    assert.equal(await frame.locator('#detail-name').innerText(), '夏 · 测试审阅', '中文组合输入时 Enter 不能提前选择');
+    assert.equal(await frame.locator('#search-results').isVisible(), true);
+    await frame.locator('#task-search').dispatchEvent('compositionend', { data: '林' });
     await frame.locator('#search-results').waitFor({ state: 'visible' });
     assert.equal(await frame.locator('.search-result').count(), 1);
     await frame.locator('.search-result').click();
     assert.equal(await frame.locator('#detail-name').innerText(), '林 · 接口分析');
+    assert.equal(await frame.locator('#search-results').isHidden(), true);
     while (watcher.step < 12) watcher.advance();
     await frame.waitForFunction(() => document.getElementById('metric-reports').textContent === '2');
     assert.equal(await frame.locator('#metric-progress').innerText(), '—', '子任务完成不能推断主任务完成');
@@ -120,20 +194,58 @@ class HarnessFixture extends DemoWatcher {
     assert.equal(await frame.locator('#dialog-content').innerText(), fullReport);
     await frame.locator('#close-demo-dialog').click();
     await frame.locator('#clear-search').click();
+    assert.equal(await frame.locator('#task-search').inputValue(), '');
+    assert.equal(await frame.locator('#task-search').evaluate(input => input === document.activeElement), true);
+    assert.ok(Math.abs((await frame.locator('#task-search').boundingBox()).width - inputWidth) < 1, '清空按钮出现时输入区不能跳动');
+    await frame.locator('#task-search').fill('不存在的任务');
+    assert.equal(await frame.locator('.search-result').count(), 0);
+    await frame.locator('#task-search').press('ArrowDown');
+    assert.equal(await frame.locator('#task-search').getAttribute('aria-activedescendant'), null);
+    assert.match(await frame.locator('#search-status').innerText(), /0|没有|无匹配/);
+    await frame.locator('#task-search').press('Escape');
+    assert.equal(await frame.locator('#search-results').isHidden(), true);
+    assert.equal(await frame.locator('#task-search').inputValue(), '不存在的任务');
+    await frame.locator('#task-search').press('Escape');
+    assert.equal(await frame.locator('#task-search').inputValue(), '');
+    await frame.locator('#task-search').fill('林');
+    await frame.locator('#task-search').press('Escape');
+    const originalApiName = watcher.agent('demo-api').name;
+    watcher.agent('demo-api').name = originalApiName + ' · 实时更新标记';
+    watcher.emit('change');
+    await frame.waitForFunction(() => document.getElementById('detail-name').textContent.includes('实时更新标记'));
+    assert.equal(await frame.locator('#search-results').isHidden(), true, '实时更新不能重新打开已经收起的搜索面板');
+    await frame.locator('#task-search').press('ArrowDown');
+    assert.ok((await frame.locator('#search-results').innerText()).includes('实时更新标记'), '方向键重开搜索时应使用最新快照，不能沿用旧结果');
+    watcher.agent('demo-api').name = originalApiName;
+    watcher.emit('change');
+    await frame.waitForFunction(name => document.getElementById('detail-name').textContent === name, originalApiName);
+    await frame.locator('#clear-search').click();
     await frame.waitForFunction(() => {
       const fill = document.getElementById('detail-progress-fill');
       return Math.abs(fill.getBoundingClientRect().width - fill.parentElement.getBoundingClientRect().width) < 1;
     });
     await page.screenshot({ path: path.join(out, 'directory-sessions-desktop.png'), fullPage: true });
 
-    await frame.locator('#scenario').selectOption('history-main');
+    panel = await openPicker(frame, 'scenario');
+    await panel.locator('.select-filter-input').fill('history-main');
+    assert.equal(await panel.locator('[role="option"]').count(), 1, '会话可按完整 ID 搜索');
+    await panel.locator('.select-filter-input').dispatchEvent('compositionstart');
+    await panel.locator('.select-filter-input').press('Enter');
+    assert.equal(await frame.locator('#scenario').inputValue(), 'demo-main', '下拉筛选组合输入期间不能提前切换会话');
+    await panel.locator('.select-filter-input').dispatchEvent('compositionend', { data: 'history-main' });
+    await panel.locator('.select-filter-input').press('Enter');
     await frame.waitForFunction(() => document.getElementById('detail-code').textContent.endsWith('ory-main'));
-    await frame.locator('#workspace-directory').selectOption(algorithmDirectory.value);
+    await choosePicker(frame, 'workspace-directory', algorithmDirectory.value, 'F:\\Projects\\Algorithm');
     await frame.waitForFunction(() => document.getElementById('scenario').value === 'algorithm-main');
     assert.deepEqual(await frame.locator('#scenario option').evaluateAll(options => options.map(option => option.value)), ['algorithm-main']);
     await frame.locator('#team-picker').click();
     assert.equal(await frame.locator('#dialog-content .session-choice').count(), 2, '团队弹窗仅列出本目录的成员和会话');
     assert.equal(await frame.locator('#dialog-content select').inputValue(), algorithmDirectory.value);
+    panel = await openPicker(frame, 'team-workspace-directory');
+    await assertPanelWithinViewport(panel);
+    await panel.locator('.select-filter-input').press('Escape');
+    assert.equal(await frame.locator('#demo-dialog').evaluate(dialog => dialog.open), true, 'Escape 应先关闭下拉，保留团队弹窗');
+    assert.equal(await frame.locator('#team-workspace-directory-trigger').evaluate(button => button === document.activeElement), true);
     await frame.locator('#close-demo-dialog').click();
     const explicitSessionUrl = frame.url();
     assert.equal(new URL(explicitSessionUrl).searchParams.get('rootId'), 'algorithm-main');
@@ -141,15 +253,43 @@ class HarnessFixture extends DemoWatcher {
     await frame.goto(explicitSessionUrl);
     await frame.waitForFunction(() => document.body.dataset.demoReady === 'true' && document.getElementById('scenario').value === 'algorithm-main');
     assert.equal(await frame.locator('#workspace-directory').inputValue(), algorithmDirectory.value, '显式 rootId 地址优先于旧的目录记忆');
-    await frame.locator('#workspace-directory').selectOption(agentDirectory.value);
+    await choosePicker(frame, 'workspace-directory', '', '未记录');
+    await frame.waitForFunction(() => document.getElementById('scenario').value === 'no-directory-main');
+    assert.match(await frame.locator('#workspace-directory-trigger').innerText(), /未记录/);
+    await choosePicker(frame, 'workspace-directory', agentDirectory.value, 'Agent');
     await frame.waitForFunction(() => document.getElementById('scenario').value === 'demo-main');
     if ((await frame.locator('#play-label').innerText()).includes('固定')) await frame.locator('#toggle-play').click();
     const oldArchivedLabel = await frame.locator('#workspace-directory option').evaluateAll((options, key) => options.find(option => option.value === key).textContent, archivedDirectory.value);
+    panel = await openPicker(frame, 'workspace-directory');
+    await panel.locator('.select-filter-input').fill('Algorithm');
+    await panel.locator('.select-filter-input').press('End');
+    const activeDirectory = await panel.locator('[role="option"][data-active="true"]').getAttribute('data-value');
     watcher.addRoot('new-other-directory', 'G:\\Archive\\Algorithm', '其他目录的新会话');
     await frame.waitForFunction(([key, previous]) => [...document.getElementById('workspace-directory').options].find(option => option.value === key)?.textContent !== previous,
       [archivedDirectory.value, oldArchivedLabel]);
+    assert.equal(await panel.locator('.select-filter-input').inputValue(), 'Algorithm', 'SSE 更新不能清空正在输入的目录筛选');
+    assert.equal(await panel.locator('.select-filter-input').evaluate(input => input === document.activeElement), true);
+    assert.equal(await panel.locator('[role="option"][data-active="true"]').getAttribute('data-value'), activeDirectory);
+    await page.screenshot({ path: path.join(out, 'directory-menu-desktop.png'), fullPage: true });
+    await panel.locator('.select-filter-input').press('Escape');
     assert.equal(await frame.locator('#scenario').inputValue(), 'demo-main', '跟随不能被其他目录的新会话抢走');
     assert.equal(await frame.locator('#workspace-directory').inputValue(), agentDirectory.value);
+
+    const longDirectory = 'F:\\Projects\\' + '多层嵌套工作目录\\'.repeat(12) + '完整路径末尾';
+    const longTitle = '检查接口兼容与超长会话标题'.repeat(10) + '标题末尾检索标记';
+    watcher.addRoot('long-session-id-87654321', longDirectory, longTitle);
+    await frame.waitForFunction(() => [...document.getElementById('workspace-directory').options].some(option => option.textContent.includes('完整路径末尾')));
+    const longKey = longDirectory.replace(/\\/g, '/').toLowerCase();
+    await choosePicker(frame, 'workspace-directory', longKey, '完整路径末尾');
+    panel = await openPicker(frame, 'scenario');
+    await panel.locator('.select-filter-input').fill('标题末尾检索标记');
+    assert.equal(await panel.locator('[role="option"]').count(), 1, '筛选应使用完整标题，不能仅搜索截断后的展示标签');
+    assert.ok((await panel.locator('[role="option"]').innerText()).includes('标题末尾检索标记'));
+    await assertPanelWithinViewport(panel);
+    await page.screenshot({ path: path.join(out, 'session-menu-long-title.png'), fullPage: true });
+    await panel.locator('.select-filter-input').press('Tab');
+    assert.equal(await panel.isVisible(), false, 'Tab 离开下拉时收起面板');
+    await choosePicker(frame, 'workspace-directory', agentDirectory.value, 'Agent');
     watcher.addRoot('new-same-directory', 'F:\\Projects\\Agent', '本目录的新会话');
     await frame.waitForFunction(() => document.getElementById('scenario').value === 'new-same-directory');
     assert.equal(await frame.locator('#workspace-directory').inputValue(), agentDirectory.value);
@@ -159,6 +299,13 @@ class HarnessFixture extends DemoWatcher {
     assert.equal(new URL(frame.url()).searchParams.get('source'), 'harness');
     assert.equal(await frame.locator('#mode-label').innerText(), '演示数据');
     assert.match(await frame.title(), /DSH Office/);
+    await choosePicker(frame, 'scenario', 'review');
+    assert.match(await frame.locator('#scenario-trigger').innerText(), /接口|审阅/);
+    await frame.locator('#task-search').fill('不存在的演示任务');
+    assert.equal(await frame.locator('.search-result').count(), 0);
+    await frame.locator('#task-search').press('Escape');
+    await frame.locator('#task-search').press('Escape');
+    assert.equal(await frame.locator('#task-search').inputValue(), '');
     await Promise.all([frame.waitForURL(url => url.searchParams.get('mode') === 'live'), frame.locator('#mode-toggle').click()]);
     await frame.waitForFunction(() => document.body.dataset.demoReady === 'true');
     await frame.waitForFunction(() => document.getElementById('mode-label').textContent === '真实会话');
@@ -173,25 +320,96 @@ class HarnessFixture extends DemoWatcher {
     assert.equal(await frame.locator('#agent-details').isHidden(), true);
     assert.equal(await frame.locator('#open-details').isVisible(), true);
     assert.equal(await frame.locator('#team-picker').isVisible(), true);
-    assert.equal(await frame.locator('#workspace-directory').isVisible(), true);
-    assert.equal(await frame.locator('#scenario').isVisible(), true);
+    assert.equal(await frame.locator('#workspace-directory-trigger').isVisible(), true);
+    assert.equal(await frame.locator('#scenario-trigger').isVisible(), true);
     assert.ok(await frame.evaluate(() => {
       const within = selector => {
         const rect = document.querySelector(selector).getBoundingClientRect();
         return rect.width > 0 && rect.height > 0 && rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight;
       };
-      return document.documentElement.scrollWidth <= innerWidth && within('.nav') && within('.stats') && within('#workflow-dock') && within('.scene-tools') && within('#workspace-directory') && within('#scenario');
+      return document.documentElement.scrollWidth <= innerWidth && within('.nav') && within('.stats') && within('#workflow-dock') && within('.scene-tools') && within('#workspace-directory-trigger') && within('#scenario-trigger');
     }), '紧凑窗口的主要控件应位于视口内');
     await frame.locator('#open-details').click();
     assert.equal(await frame.locator('#agent-details').isVisible(), true);
     await frame.locator('#close-details').click();
+    panel = await openPicker(frame, 'workspace-directory');
+    await panel.locator('.select-filter-input').fill('完整路径末尾');
+    await assertPanelWithinViewport(panel);
     await page.screenshot({ path: path.join(out, 'directory-sessions-compact.png'), fullPage: true });
+    await frame.locator('#metric-active').click();
+    assert.equal(await panel.isVisible(), false, '点击下拉外部应收起面板');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    frame = await (await page.waitForSelector('#office-frame')).contentFrame();
+    await frame.waitForFunction(() => document.body.dataset.demoReady === 'true');
+    assert.equal(await frame.locator('#workspace-directory-trigger').isVisible(), false);
+    assert.equal(await frame.locator('#team-picker').isVisible(), true);
+    await frame.locator('#demo-reduced').check();
+    await frame.locator('#team-picker').click();
+    panel = await openPicker(frame, 'team-workspace-directory');
+    await panel.locator('.select-filter-input').fill('完整路径末尾');
+    await assertPanelWithinViewport(panel);
+    assert.ok(await panel.evaluate(element => {
+      const style = getComputedStyle(element);
+      return [style.animationDuration, style.transitionDuration].every(value => value.split(',').every(part => parseFloat(part) < .02));
+    }), '减少动画设置应去掉下拉展开的位移动画');
+    await page.screenshot({ path: path.join(out, 'directory-sessions-mobile.png'), fullPage: true });
+    await panel.locator('[role="option"]').click();
+    await frame.waitForFunction(() => document.getElementById('scenario').value === 'long-session-id-87654321');
+    assert.equal(await frame.locator('#demo-dialog').evaluate(dialog => dialog.open), true);
+    assert.ok((await frame.locator('#team-workspace-directory-trigger').innerText()).includes('完整路径末尾'));
+    await choosePicker(frame, 'team-workspace-directory', agentDirectory.value, 'Agent');
+    await frame.waitForFunction(() => document.getElementById('scenario').value === 'new-same-directory');
+    panel = await openPicker(frame, 'team-workspace-directory');
+    await panel.locator('.select-filter-input').press('Escape');
+    assert.equal(await frame.locator('#demo-dialog').evaluate(dialog => dialog.open), true, '弹窗切换目录后重建的下拉仍可再次使用');
+    await frame.locator('#close-demo-dialog').click();
+    assert.ok(await frame.evaluate(() => document.documentElement.scrollWidth <= innerWidth), '手机窗口不能出现横向页面滚动');
+
+    const touchContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const touchPage = await touchContext.newPage();
+    touchPage.on('pageerror', error => errors.push(error.message));
+    await touchContext.addCookies([{ name: 'fixture-owner', value: '1', url: base, httpOnly: true, sameSite: 'Strict' }]);
+    await touchPage.goto(base + mount + 'demo.html?mode=live&source=harness');
+    await touchPage.waitForFunction(() => document.body.dataset.demoReady === 'true' && document.getElementById('mode-label').textContent === '真实会话');
+    assert.equal(await touchPage.evaluate(() => navigator.maxTouchPoints > 0 && innerWidth === 390), true);
+    await touchPage.locator('#team-picker').tap();
+    panel = await openPicker(touchPage, 'team-workspace-directory', true);
+    await panel.locator('.select-filter-input').fill('未记录');
+    await panel.locator('[role="option"][data-value=""]').tap();
+    await touchPage.waitForFunction(() => document.getElementById('scenario').value === 'no-directory-main');
+    assert.match(await touchPage.locator('#team-workspace-directory-trigger').innerText(), /未记录/);
+    panel = await openPicker(touchPage, 'team-workspace-directory', true);
+    await assertPanelWithinViewport(panel);
+    await panel.locator('.select-filter-input').press('Escape');
+    await touchContext.close();
+
+    // 空状态通过拦截本地只读接口提供合成快照，不触碰真实会话或生产接口。
+    const emptyPage = await context.newPage();
+    emptyPage.on('pageerror', error => errors.push(error.message));
+    const emptySnapshot = { mode: 'live', source: 'harness', rootId: null, roots: [], agents: [], events: [] };
+    await emptyPage.route('**/api/sessions**', route => route.fulfill({ json: emptySnapshot }));
+    await emptyPage.route('**/events**', route => route.fulfill({ contentType: 'text/event-stream', body: 'data: ' + JSON.stringify(emptySnapshot) + '\n\n' }));
+    const emptyLoaded = emptyPage.waitForResponse(response => new URL(response.url()).pathname.endsWith('/api/sessions'));
+    await emptyPage.goto(base + mount + 'demo.html?mode=live&source=harness');
+    await emptyLoaded;
+    await emptyPage.waitForFunction(() => document.getElementById('workspace-directory-trigger')?.disabled && document.getElementById('scenario-trigger')?.disabled);
+    assert.equal(await emptyPage.locator('#workspace-directory-trigger').isDisabled(), true);
+    assert.equal(await emptyPage.locator('#scenario-trigger').isDisabled(), true);
+    assert.match(await emptyPage.locator('#workspace-directory-trigger').innerText(), /尚未发现/);
+    assert.match(await emptyPage.locator('#scenario-trigger').innerText(), /尚未发现/);
+    await emptyPage.close();
     assert.deepEqual(errors, []);
     assert.deepEqual(failedResponses, []);
     const result = { ok: true, browser: 'Google Chrome', data: 'isolated in-memory fixture', webgl: true,
       checks: ['同源 sandbox iframe', 'HttpOnly 身份校验及未登录 401', 'DSH 品牌', '真实模式团队与 SSE 更新',
         '子路径 GLB 模型', '搜索选择成员', '完整汇报全文', '工作目录与会话两级选择', '同名目录完整路径与同名会话时间/ID',
-        '团队弹窗目录筛选', '地址 rootId 优先于目录记忆', '只跟随本目录的新会话', '模拟与真实切换保留来源', '1500x1000 与 900x720 布局'],
+        '团队弹窗目录筛选与嵌套 Escape', '地址 rootId 优先于目录记忆', '只跟随本目录的新会话', '模拟与真实切换保留来源',
+        '搜索键盘导航、输入法组合与清空占位', '未知目录有效空键', '实时刷新保留查询与高亮',
+        '收起搜索后实时更新再用方向键打开使用最新快照', '完整长路径与完整标题筛选',
+        '下拉空匹配、空快照禁用与减少动画', '可访问名称包含当前选择', '390px 触屏 tap 打开、选择与重开',
+        '1500x1000、900x720 与 390x844 布局及面板边界'],
       pageErrors: errors, failedResponses, modelCalls: 0, profileWrites: 0 };
     fs.writeFileSync(path.join(out, 'directory-sessions-browser-result.json'), JSON.stringify(result, null, 2));
     console.log(JSON.stringify(result, null, 2));

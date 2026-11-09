@@ -22,3 +22,77 @@ body[data-mode=live] .glass{backdrop-filter:none}
 @media(min-width:761px) and (max-width:1050px){.workspace-switch.harness-picker{flex-basis:380px;min-width:320px}body[data-mode=live] .nav:has(.harness-picker) .brand{flex:0 0 34px}body[data-mode=live] .nav:has(.harness-picker) .brand>span:last-child{display:none}}
 @media(min-width:761px) and (max-width:850px){.workspace-switch.harness-picker{flex-basis:320px;min-width:270px}body[data-mode=live] .nav:has(.harness-picker){gap:10px;padding-inline:12px}}
 @media(max-width:760px){.workspace-switch.harness-picker{display:none}}
+
+/* 搜索与选择共用紧凑字段样式，目录和会话的标签放在触发器内。 */
+.search-box{height:44px;gap:9px;padding:0 12px;border-color:#dce4ef;background:#fbfcff;box-shadow:none;transition:border-color .16s,background-color .16s}
+.search-box:focus-within{border-color:var(--blue);background:#fff}
+.search-box:has(input:focus-visible){outline:3px solid #c7dcff;outline-offset:2px}
+.search-box input{height:100%;font-size:13px;caret-color:var(--blue)}
+.search-box input::placeholder{color:#64748b}
+.search-box input:focus-visible{outline:none}
+.search-box input::-webkit-search-cancel-button{display:none}
+.search-box kbd{display:grid;place-items:center;flex:0 0 23px;height:24px;padding:0;font-size:12px;color:#5d6d86;border-color:#dce4ef;background:#f3f6fb}
+.search-box .clear-search{width:28px;height:28px;padding:7px;border-radius:7px;transition:opacity .14s}
+.clear-search[aria-hidden=true]{visibility:hidden;pointer-events:none;opacity:0}
+.search-box .clear-search img{width:14px;height:14px}
+.search-box input::selection,.select-filter-input::selection{background:#d9e9ff;color:#153960}
+.search-results{top:52px;padding:6px;border-radius:12px;max-height:min(380px,55vh);overflow:hidden;background:#fff;backdrop-filter:none;box-shadow:0 12px 32px #18366328}
+.search-result-list{max-height:min(322px,calc(55vh - 42px));overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#b9cae2 transparent}
+.search-result{min-height:48px;align-items:flex-start;gap:10px;padding:10px;border-radius:8px}
+.search-result>img{flex:0 0 18px;width:18px;height:18px;margin-top:2px;opacity:.75}
+.search-result>span{min-width:0}
+.search-result strong{font-size:12px;line-height:1.55;color:#223755;overflow-wrap:anywhere}
+.search-result small{font-size:11px;line-height:1.55;margin-top:2px;color:#5f718b;overflow-wrap:anywhere}
+.search-result[data-active=true]{background:#eaf2ff}
+.search-result[aria-selected=true]{color:var(--blue)}
+.search-status{margin:5px 5px 0;padding:8px 5px 3px;border-top:1px solid #edf1f7;color:#5f718b;font-size:11px;line-height:1.5}
+.search-results .queue-empty{padding:18px 12px;color:#61728b;font-size:12px}
+.workspace-switch{height:44px;padding:0;gap:8px;border:0;border-radius:0;background:transparent;box-shadow:none}
+.workspace-switch.harness-picker{gap:8px}
+.workspace-icon{flex:0 0 33px}
+.workspace-switch label{position:relative;display:block;height:44px;min-width:0}
+.workspace-switch label>strong,.workspace-switch label>span,.workspace-switch.harness-picker label>strong,.workspace-switch.harness-picker label>span{position:absolute;z-index:1;top:5px;left:11px;right:27px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#5f718b;font-size:11px;font-weight:500;line-height:14px;pointer-events:none}
+.office-select{min-width:0;width:100%}
+.select-trigger{display:flex;align-items:center;gap:8px;min-width:0;width:100%;height:44px;padding:0 11px;border:1px solid #dce4ef;border-radius:12px;background:#fbfcff;text-align:left;font-size:13px;line-height:1.4;color:#233d60;transition:border-color .16s,background-color .16s}
+.select-trigger:focus-visible{outline:3px solid #c7dcff;outline-offset:2px}
+.select-trigger[aria-expanded=true]{border-color:var(--blue);background:#fff}
+.workspace-switch .select-trigger{align-items:flex-end;padding-top:18px;padding-bottom:6px;font-size:12px;line-height:17px}
+.select-value{min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.select-chevron{flex:0 0 12px;width:12px;height:12px;align-self:center;opacity:.65}
+.select-trigger[aria-expanded=true] .select-chevron{transform:rotate(180deg)}
+.select-trigger:disabled{opacity:1;cursor:default;background:#f2f5f9;border-color:#e2e8f0;color:#627086}
+.select-trigger:disabled .select-chevron{opacity:.35}
+.session-picker-field .office-select{width:100%}
+.session-picker-field .select-trigger{font-size:13px}
+
+/* Popover 进入顶层，弹窗内的目录列表也不受正文滚动区域裁切。 */
+.select-popover{position:fixed;inset:auto;margin:0;padding:6px;border:0;border-radius:12px;background:#fff;color:var(--ink);box-shadow:0 12px 32px #18366330;overflow:hidden;font:13px/1.45 var(--font);white-space:normal}
+.select-popover:popover-open{display:flex;flex-direction:column}
+.select-popover::backdrop{background:transparent;pointer-events:none}
+.select-filter{display:flex;align-items:center;flex-shrink:0;gap:9px;min-width:0;min-height:44px;margin:0 0 6px;padding:0 10px;border:1px solid #dce4ef;border-radius:9px;background:#fbfcff}
+.select-filter:focus-within{border-color:var(--blue);background:#fff}
+.select-filter>img{flex:0 0 16px;width:16px;height:16px;opacity:.65}
+.select-filter-input{flex:1;width:100%;min-width:0;height:42px;margin:0;padding:0;border:0;outline:none;background:transparent;color:#233d60;font:13px var(--font);caret-color:var(--blue)}
+.select-filter-input::placeholder{color:#64748b}
+.select-filter-input:focus-visible{outline:none}
+.select-filter-input::-webkit-search-cancel-button{display:none}
+.select-filter-clear{display:grid;place-items:center;flex:0 0 28px;width:28px;height:28px;padding:7px;border:0;border-radius:7px;background:transparent}
+.select-filter-clear>img{width:14px;height:14px}
+.select-filter-clear[aria-hidden=true]{visibility:hidden;pointer-events:none}
+.select-options{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#b9cae2 transparent}
+.select-option{display:flex;align-items:center;gap:12px;min-height:48px;padding:10px;border-radius:8px;cursor:pointer}
+.select-option-copy{min-width:0;flex:1}
+.select-option strong{display:block;font-size:12px;font-weight:500;line-height:1.55;color:#233d60;overflow-wrap:anywhere}
+.select-option small{display:block;margin-top:3px;font-size:11px;line-height:1.55;color:#5f718b;overflow-wrap:anywhere}
+.select-option[data-active=true]{background:#eaf2ff}
+.select-option[aria-selected=true] strong{color:#0755ce;font-weight:600}
+.select-option[aria-disabled=true]{cursor:default;opacity:.55}
+.select-check{flex:0 0 15px;width:15px;height:15px;filter:invert(29%) sepia(97%) saturate(2998%) hue-rotate(211deg) brightness(99%)}
+.select-option:not([aria-selected=true]) .select-check{visibility:hidden}
+.select-empty{margin:0;padding:21px 12px;color:#61728b;font-size:12px;line-height:1.6}
+.select-popover:popover-open,.search-results:not([hidden]){animation:control-reveal .14s cubic-bezier(.16,1,.3,1)}
+@keyframes control-reveal{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+@media(hover:hover) and (pointer:fine){.search-box:hover,.select-trigger:not(:disabled):hover{border-color:#afc3df}.select-trigger[aria-expanded=true]:hover,.search-box:focus-within:hover{border-color:var(--blue)}.select-option:not([aria-disabled=true]):hover,.search-result:hover{background:#eef4ff}.select-filter-clear:hover{background:#edf3fc}}
+@media(max-width:760px){.search-wrap{left:0;right:0}.search-box{height:44px;border-radius:12px}.search-box input{font-size:13px}.search-results{top:52px}.select-filter-input{font-size:16px}.select-option{min-height:48px}.session-picker-field .select-trigger{height:44px}}
+body[data-reduced-motion=true] .select-popover,body[data-reduced-motion=true] .search-results{animation:none}
+body[data-reduced-motion=true] .search-box,body[data-reduced-motion=true] .select-trigger,body[data-reduced-motion=true] .clear-search{transition:none}

@@ -83,3 +83,20 @@ final result: passed
 本轮主 Agent 的最终回复尚需本次交付落盘后由用户观察，未把测试中的结束路径当作本轮已经结束。首次加载、切换及重连不重放历史由接入测试和源代码检查覆盖；标签与列表选中已在真实页验证。人物／工位射线由子 Agent 的合成 WebGL 检查覆盖，未声称在 IAB 完成真实坐标点击。未额外强制关闭 IAB 的 WebGL；真实模式的降级入口保留团队选择与详情。
 
 README 已同步真实模式入口、只读控制和当前日志限制。用户可自行配置用户级 AGENTS.md 的默认多 Agent 协作规则；观察器和插件不会修改这些规则，也不会更改模型、权限或并发配置。
+
+## 搜索与可搜索下拉改造（2026-11-09）
+
+本次参考 UIArc 的 [Search Field](https://uiarc.dev/components/search-field) 和 [Combobox](https://uiarc.dev/components/combobox)，保留现有蓝白主题。改造范围是新版办公室顶部任务搜索、目录与会话选择，以及团队弹窗的目录选择，覆盖演示与真实模式；旧版监控首页和 3D 场景未改动。
+
+- 顶部字段统一为 44px 高、12px 圆角，清空按钮预留位置；下拉展示完整路径、会话数量，以及完整标题与时间、短 ID。
+- 目录和会话下拉沿用原 select 的值与 change 事件，继续由 LiveSource 处理目录联动、地址与记忆优先级及跟随规则；空字符串仍是未记录目录的有效键。
+- 搜索与下拉补齐方向键、Home / End、Enter、Escape、Tab 和输入法组合处理。选择器可访问名称包含当前值；弹窗内 Escape 优先关闭下拉，重建时释放监听和面板。
+- 下拉使用 Popover 顶层避免弹窗正文裁切，按视口调整位置和高度；列表更新保留筛选、焦点与有效高亮。系统或页面减少动画设置均会停用位移动画。
+
+验证证据：`npm run build`、`node --test tests/session-selection.test.js tests/live-source.test.js tests/demo.test.js`（16/16），以及 `npm run test:plugin:ui`。浏览器验收使用隔离内存夹具和实际 Google Chrome，包含同源插件 iframe、SSE、URL 与目录记忆、长内容、空数据、键盘与输入法、减少动画和触屏 tap；结果见 `.verification/directory-sessions-browser-result.json`。
+
+桌面、紧凑窗口、手机截图分别为 `.verification/directory-menu-desktop.png`（1500×1000）、`.verification/directory-sessions-compact.png`（900×720）和 `.verification/directory-sessions-mobile.png`（390×844）；长会话标题见 `.verification/session-menu-long-title.png`。截图等待展开动画完成，已核对面板边界、长文本换行与顶部控件布局。
+
+机械样式扫描已执行一次；其关于旧卡片的小字号、低对比度及既有进度条宽度动画等提示未纳入本次控件改造。未新增依赖、后端接口或远程资源。验证限于本地源码与构建产物，未安装到实际 Harness profile、未调用模型；未使用真实用户会话，也未将合成输入事件当作真实系统输入法验收。
+
+`v0.1.2` 发布检查：`npm test` 全量 75/75 通过，`npm run smoke:host` 使用本机 Harness `0.2.2-rc.1` 的实际 SDK 与合成会话通过加载、鉴权、SSE 和卸载检查；模型调用、用户 profile 写入及真实用户会话读取均为 0。打包内容包含新版控件构建产物，不包含测试、验证截图或本地配置。

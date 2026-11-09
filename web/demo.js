@@ -2,6 +2,7 @@ import { DemoScene } from './demo-scene.js';
 import { DemoPlayer, DURATION } from './demo-state.mjs';
 import { startLiveOffice } from './live-office.js';
 import { applyOfficeBrand, officePage, officeSource } from './base-url.mjs';
+import { enhanceSelect, bindSearchNavigation, closeOfficeControls } from './office-controls.js';
 
 if (new URLSearchParams(location.search).get('mode') === 'live') startLiveOffice();
 else startDemo();
@@ -29,6 +30,10 @@ let snapshot = viewSnapshot(), selectedId = 'frontend', scene = null, query = ''
 let seen = new Set(snapshot.events.map((e) => e.id)), detailsOpen = innerWidth > 1050 && innerHeight > 820;
 let lastSeconds = snapshot.seconds, lastScenario = snapshot.scenario, lastTime = performance.now();
 let dialogSignature = '', queueSignature = '';
+const scenarioPicker = enhanceSelect($('scenario'));
+const searchNavigation = bindSearchNavigation({ input: $('task-search'), form: $('search-form'),
+  results: $('search-results'), list: $('search-result-list'), status: $('search-status'), clear: $('clear-search'),
+  onClear: () => $('clear-search').click(), onOpen: renderSearch });
 const names = { main: '主 Agent', api: '接口 Agent', frontend: '前端 Agent', test: '测试 Agent' };
 const selected = () => snapshot.agents.find((s) => s.id === selectedId) || snapshot.agents[0];
 const statusLabel = (s) => s.status === 'done' ? '已完成' : s.status === 'unknown' ? '待分配' : s.status === 'waiting_agents' ? '协调中' : '执行中';
@@ -125,20 +130,18 @@ function renderQueue() {
 }
 
 function renderSearch() {
-  const results = $('search-results'); results.replaceChildren();
-  results.hidden = !query;
-  $('clear-search').hidden = !query;
-  if (!query) return;
-  const filtered = snapshot.agents.filter(matches);
+  const results = $('search-result-list'); results.replaceChildren();
+  const filtered = query ? snapshot.agents.filter(matches) : [];
   for (const s of filtered) {
     const button = element('button', 'search-result');
+    button.type = 'button'; button.dataset.value = s.id;
     const text = element('span');
     text.append(element('strong', '', s.name + ' · ' + s.title), element('small', '', s.file));
     button.append(icon(s.icon), text);
-    button.onclick = () => { selectAgent(s.id); results.hidden = true; $('task-search').blur(); };
+    button.onclick = () => { selectAgent(s.id); $('task-search').focus(); searchNavigation.close(); };
     results.append(button);
   }
-  if (!filtered.length) results.append(element('div', 'queue-empty', '没有匹配的任务或 Agent'));
+  searchNavigation.refresh();
 }
 
 function renderNotifications() {
@@ -154,6 +157,7 @@ function renderNotifications() {
 }
 
 function showText(title, text, iconName = selected().icon) {
+  closeOfficeControls();
   $('dialog-title').textContent = title;
   $('dialog-content').textContent = text;
   $('dialog-icon').src = './demo-icons/' + iconName + '.svg';
@@ -250,11 +254,6 @@ $('scenario').onchange = (e) => {
 $('task-search').oninput = (e) => { query = e.target.value.trim(); queueSignature = ''; renderQueue(); renderSearch(); };
 $('task-search').onfocus = () => renderSearch();
 $('clear-search').onclick = () => { query = ''; $('task-search').value = ''; renderQueue(); renderSearch(); $('task-search').focus(); };
-$('search-form').onsubmit = (e) => {
-  e.preventDefault();
-  const first = snapshot.agents.find(matches);
-  if (first && query) { selectAgent(first.id); $('search-results').hidden = true; $('task-search').blur(); }
-};
 $('notifications-button').onclick = () => {
   const show = $('notifications').hidden;
   $('notifications').hidden = !show;
@@ -274,14 +273,14 @@ for (const button of document.querySelectorAll('.stage')) button.onclick = () =>
   toast('正在预览：' + STAGES[Number(button.dataset.stage)]);
 };
 $('demo-reduced').checked = matchMedia('(prefers-reduced-motion: reduce)').matches;
-$('demo-reduced').onchange = (e) => scene?.setReduced(e.target.checked);
+document.body.dataset.reducedMotion = String($('demo-reduced').checked);
+$('demo-reduced').onchange = (e) => { document.body.dataset.reducedMotion = String(e.target.checked); scene?.setReduced(e.target.checked); };
 document.addEventListener('keydown', (e) => {
   if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) && !$('demo-dialog').open) {
     e.preventDefault(); $('task-search').focus();
   }
 });
 document.addEventListener('click', (e) => {
-  if (!e.target.closest('.search-wrap')) $('search-results').hidden = true;
   if (!e.target.closest('#notifications') && !e.target.closest('#notifications-button')) {
     $('notifications').hidden = true; $('notifications-button').setAttribute('aria-expanded', 'false');
   }
@@ -307,5 +306,5 @@ const timer = setInterval(() => {
   lastTime = now;
   if (!document.hidden) player.advance(delta);
 }, 250);
-window.addEventListener('beforeunload', () => { clearInterval(timer); clearTimeout(toastTimer); scene?.destroy(); });
+window.addEventListener('beforeunload', () => { clearInterval(timer); clearTimeout(toastTimer); scenarioPicker.destroy(); searchNavigation.destroy(); scene?.destroy(); });
 }
