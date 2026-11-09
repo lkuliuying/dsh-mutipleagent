@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Codex · 协作办公室</title>
+  <link rel="icon" href="./assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Codex 协作办公室首页"><span class="brand-mark">◈</span><span>Codex <b>Office</b></span><span class="brand-divider"></span><span class="brand-caption">协作办公室</span></a>
+    <div class="top-actions"><span id="mode" class="mode">只读观察</span><span id="connection" class="connection" role="status">正在连接</span><span id="clock" class="clock"></span></div>
+  </header>
+  <div id="notice" class="notice" role="status" hidden></div>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="section-eyebrow">WORKSPACE <span>01</span></div>
+      <h1>任务与团队</h1>
+      <label class="field-label" for="task-select">当前主任务</label>
+      <select id="task-select" aria-label="选择主任务"><option>正在发现会话…</option></select>
+      <div id="project-path" class="project-path"></div>
+      <div class="section-line"><span>协作团队</span><span id="team-count" class="count">0</span></div>
+      <div id="team-tree" class="team-tree" aria-label="Agent 团队"></div>
+      <div class="sidebar-bottom"><span class="local-dot"></span><div><b>本机运行 · 只读连接</b><p>任务继续在 Codex 中执行</p></div></div>
+    </aside>
+    <main class="main">
+      <div class="workspace-heading">
+        <div><div class="section-eyebrow"><span class="live-dot"></span> LIVE WORKSPACE</div><h2>协作，正在发生。</h2><p id="task-title">从任务分配，到每一份汇报。</p></div>
+        <div class="summary" aria-label="团队状态"><div><strong id="working-count">0</strong><span>执行中</span></div><div><strong id="done-count">0</strong><span>已完成</span></div><div><strong id="waiting-count">0</strong><span>待处理</span></div></div>
+      </div>
+      <section class="office-panel" aria-label="三维协作办公室">
+        <div class="scene-toolbar"><span class="scene-label"><i></i> 团队办公室 <small>/ 3D</small></span><div class="scene-actions"><label class="motion-switch"><input id="reduced-motion" type="checkbox">减少动画</label><button id="reset-camera" class="icon-button" title="复位镜头" aria-label="复位镜头">⌖</button></div></div>
+        <div id="scene" class="scene"></div>
+        <div id="scene-status" class="scene-status" role="status">正在准备办公室…</div>
+        <div class="scene-footer"><span>拖动旋转 <i>·</i> 滚轮缩放 <i>·</i> 点击人物查看详情</span><span class="scene-watermark">CODEX / COLLABORATION</span></div>
+      </section>
+      <section class="timeline-panel" aria-label="协作时间线">
+        <div class="timeline-heading"><div><span class="section-eyebrow">THE HANDOFFS</span><h3>每一次协作，都有迹可循</h3></div><span id="event-count" class="muted">等待事件</span></div>
+        <div id="timeline" class="timeline"></div>
+      </section>
+      <footer class="main-footer"><span>状态来自实际日志；消息块写入后同步。</span><span>Three.js × Codex</span></footer>
+    </main>
+    <aside class="details" aria-label="Agent 详情">
+      <div class="section-eyebrow">AGENT INSPECTOR <span>↗</span></div>
+      <div id="agent-header" class="agent-header"></div>
+      <div id="agent-metadata" class="agent-metadata"></div>
+      <div class="detail-tabs" role="tablist" aria-label="Agent 详情视图"><button id="activity-tab" class="active" role="tab" aria-selected="true">执行活动</button><button id="report-tab" role="tab" aria-selected="false">汇报全文</button></div>
+      <div id="activity-panel"><div class="detail-section-label">任务内容 <button id="open-task" class="text-button">查看原文 ↗</button></div><p id="agent-task" class="task-copy"></p><div class="detail-section-label">最近活动</div><div id="agent-activity" class="activity-list"></div></div>
+      <div id="report-panel" hidden><div id="report-content" class="report-content"></div></div>
+      <div class="details-footer">主 Agent 协调，子 Agent 各司其职。<br>这里展示它们实际留下的记录。</div>
+    </aside>
+  </div>
+  <dialog id="text-dialog"><div class="dialog-heading"><div><span class="section-eyebrow">SOURCE RECORD</span><h3 id="dialog-title">原始记录</h3></div><button id="close-dialog" class="icon-button" aria-label="关闭">×</button></div><pre id="dialog-body"></pre><div class="dialog-footer"><span>来自 Codex 可见消息</span><button id="copy-text" class="solid-button">复制全文</button></div></dialog>
+  <script src="./vendor/office.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

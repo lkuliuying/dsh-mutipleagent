@@ -1,0 +1,43 @@
+{
+  "name": "dsh-mutipleagent",
+  "displayName": "DSH 多 Agent 办公室",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness 多 Agent 3D 协作办公室插件",
+  "license": "MIT",
+  "icon": "./assets/agents/dsh.svg",
+  "engines": { "node": "^22.19.0 || >=24.0.0", "dsh": "0.2.2-rc.1" },
+  "main": "harness.cjs",
+  "exports": {
+    ".": "./harness.cjs",
+    "./client": "./client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json",
+    "./icon": "./assets/agents/dsh.svg"
+  },
+  "files": ["harness.cjs", "client.js", "cordis.patch.yml", "src", "public", "assets", "vendor/licenses", "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md"],
+  "repository": { "type": "git", "url": "https://github.com/lkuliuying/dsh-mutipleagent.git" },
+  "homepage": "https://github.com/lkuliuying/dsh-mutipleagent",
+  "bugs": { "url": "https://github.com/lkuliuying/dsh-mutipleagent/issues" },
+  "keywords": ["dsh-plugin", "deepseek-harness", "multi-agent", "3d-office"],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "inject": ["@deepseek-ai/dsh-client-ui-layout", "@deepseek-ai/dsh-client-ui-sidebar"]
+    }
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "demo": "node src/server.js --demo",
+    "build": "esbuild web/app.js web/demo.js --bundle --format=esm --minify --target=es2020 --outdir=public --legal-comments=eof",
+    "test": "node --test tests/*.test.js",
+    "test:ui": "node tests/browser.cjs",
+    "test:plugin:ui": "node tests/plugin-browser.cjs",
+    "smoke:host": "node scripts/smoke-host.cjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12",
+    "playwright": "^1.62.1",
+    "three": "^0.186.1"
+  }
+}
