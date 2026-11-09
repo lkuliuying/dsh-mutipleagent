@@ -45,9 +45,20 @@ jobs:
             exit 0
           fi
           npm publish --access public --provenance
+      - name: 生成安装包
+        run: |
+          mkdir -p dist
+          npm pack --pack-destination dist
+          mv dist/dsh-mutipleagent-*.tgz dist/dsh-mutipleagent.tgz
       - name: 创建 GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${{ github.event.inputs.tag || github.ref_name }}"
           gh release view "$tag" >/dev/null 2>&1 && gh release edit "$tag" --notes-file /tmp/notes.md || gh release create "$tag" --title "$tag" --notes-file /tmp/notes.md
+      - name: 上传安装包
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          gh release upload "$tag" dist/dsh-mutipleagent.tgz --clobber

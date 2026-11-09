@@ -18,7 +18,7 @@
 
 - 轮询按需：没有页面连接也没有 SSE 订阅时不再定时读会话；页面打开或客户端接入时立即刷新。
 - 折叠结果按日志指纹复用：会话事件没有新增时不再每秒重新折叠全部团队。
-- 构建改用 esbuild 代码分割，`three.js` 只打一份共享 chunk：`public/app.js` 从 731.6 KB 降到 13.2 KB（gzip 5.1 KB），`public/demo.js` 从 814 KB 降到 84.5 KB（gzip 26.3 KB）。
+- 构建改用 esbuild 代码分割，`three.js` 只打一份共享 chunk：`public/app.js` 从 731.6 KB 降到 10.5 KB（gzip 4.1 KB），`public/demo.js` 从 814 KB 降到 73.4 KB（gzip 23.2 KB）；共享 chunk 790.1 KB（gzip 206 KB），两个页面共用且在切页时命中缓存。
 - 3D 首屏只等家具与前 3 个角色，其余模型后台补齐，单个模型失败也不再阻塞场景。
 - 响应头补充 `referrer-policy`、`permissions-policy`、`cross-origin-resource-policy`，CSP 追加 `object-src 'none'` 与 `form-action 'none'`；面板 iframe 改用 `no-referrer`，并写明同源沙箱的取舍。
 - 仓库工程化：`.gitattributes`、ESLint、Prettier、`npm run check:compat`、GitHub Actions（Node 22.19 与 24 矩阵、浏览器验收、构建产物一致性、发布包清单）与 `npm run release` 一键发布。
