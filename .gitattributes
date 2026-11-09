@@ -1,0 +1,24 @@
+* text=auto eol=lf
+
+# Windows 入口脚本需要 CRLF，否则 cmd 解析会出问题。
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制资源不做行尾与合并处理。
+*.glb binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.tgz binary
+
+# 构建产物由 scripts/build.mjs 生成，评审时折叠。
+public/app.js linguist-generated=true
+public/demo.js linguist-generated=true
+public/chunks/** linguist-generated=true
+package-lock.json linguist-generated=true
+
+# 生成的文本文件不参与 diff 统计噪音。
+public/chunks/** -diff

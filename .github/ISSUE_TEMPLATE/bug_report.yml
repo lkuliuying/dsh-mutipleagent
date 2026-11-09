@@ -1,0 +1,61 @@
+name: Bug 报告
+description: 界面、数据或安装出问题时使用
+title: '[bug] '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先确认：完全退出 Harness Desktop 后再安装/更新，并重启过 Harness。安全漏洞请走 [私密报告](https://github.com/lkuliuying/dsh-mutipleagent/security/advisories/new)，不要开公开 issue。
+  - type: input
+    id: plugin-version
+    attributes:
+      label: 插件版本
+      description: 侧栏面板或 `package.json` 里的版本号
+      placeholder: 0.2.0
+    validations:
+      required: true
+  - type: input
+    id: dsh-version
+    attributes:
+      label: Harness 版本与平台
+      placeholder: Harness 0.2.2-rc.1 / Windows 11
+    validations:
+      required: true
+  - type: input
+    id: install
+    attributes:
+      label: 安装方式
+      description: 插件市场、codeload tag、本地 tgz，还是 git 主分支
+      placeholder: 插件市场更新
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开「多 Agent 办公室」
+        2. 选择某个会话
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+      description: 有截图更好；控制台报错请贴完整文本
+    validations:
+      required: true
+  - type: textarea
+    id: health
+    attributes:
+      label: /api/health 输出（可选）
+      description: 打开 http://127.0.0.1:4317/api/health 复制内容，便于确认版本与轮询状态
+      render: json

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全问题
+    url: https://github.com/lkuliuying/dsh-mutipleagent/security/advisories/new
+    about: 请走私密通道，不要在公开 issue 中披露可利用细节。
+  - name: 更新日志与发布说明
+    url: https://github.com/lkuliuying/dsh-mutipleagent/releases
+    about: 先确认问题在最新版本是否已修复。

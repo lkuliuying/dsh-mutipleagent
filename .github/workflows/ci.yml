@@ -1,0 +1,85 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.19.0', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: 代码规范
+        run: npm run lint
+      - name: 格式
+        run: npm run format:check
+      - name: 宿主兼容自检
+        run: npm run check:compat
+      - name: 单元测试与覆盖率门槛
+        run: npm run test:coverage
+      - name: 构建产物是否与源码一致
+        if: matrix.node == '22.19.0'
+        run: |
+          npm run build
+          if [ -n "$(git status --porcelain public)" ]; then
+            echo "::error::public/ 与 web/ 源码不一致，请本地运行 npm run build 并提交产物"
+            git status --porcelain public
+            git diff --stat public
+            exit 1
+          fi
+
+  ui:
+    name: browser acceptance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: 安装 Chromium
+        run: npx playwright install --with-deps chromium
+      - name: 浏览器验收（WebGL、交互、响应式、无 WebGL 降级）
+        run: npm run test:ui
+      - name: 插件面板形态验收
+        run: npm run test:plugin:ui
+
+  package:
+    name: package contents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: 打包含完整清单
+        run: |
+          npm pack --pack-destination /tmp
+          tar -tzf /tmp/dsh-mutipleagent-*.tgz | sort > /tmp/contents.txt
+          for required in package/harness.cjs package/client.js package/cordis.patch.yml package/CHANGELOG.md package/README.md; do
+            grep -qx "$required" /tmp/contents.txt || { echo "::error::发布包缺少 $required"; exit 1; }
+          done
+          echo "包内文件数：$(wc -l < /tmp/contents.txt)"

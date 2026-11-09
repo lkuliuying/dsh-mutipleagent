@@ -1,0 +1,8 @@
+node_modules
+public
+assets
+vendor
+.artifacts
+.verification
+package-lock.json
+*.md
