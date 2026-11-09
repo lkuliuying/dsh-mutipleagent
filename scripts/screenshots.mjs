@@ -116,10 +116,16 @@ try {
 }
 
 // 市场只读中文那套；英文图只给 README.en.md 用，避免同一份清单里混语言。
+// 顺序即市场里的展示顺序，第一张是封面，所以办公室全景要排在最前。
+const ORDER = ['demo-office.jpg', 'demo-task-detail.jpg', 'demo-notifications.jpg', 'live-office.jpg'];
+const rank = name => {
+  const index = ORDER.indexOf(name);
+  return index === -1 ? ORDER.length : index;
+};
 const manifest = fs
   .readdirSync(outDir)
   .filter(name => name.endsWith('.jpg') && !name.endsWith('-en.jpg'))
-  .sort()
+  .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
   .map(name => `assets/screenshots/${name}`);
 fs.writeFileSync(path.join(root, 'screenshots.json'), JSON.stringify(manifest, null, 2) + '\n');
 console.log(`screenshots.json 已写入（${manifest.length} 张）`);
