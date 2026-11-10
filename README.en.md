@@ -1,6 +1,7 @@
 # dsh-mutipleagent
 
 [![ci](https://github.com/lkuliuying/dsh-mutipleagent/actions/workflows/ci.yml/badge.svg)](https://github.com/lkuliuying/dsh-mutipleagent/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/dsh-mutipleagent.svg)](https://www.npmjs.com/package/dsh-mutipleagent)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 English · [简体中文](README.md)
@@ -33,6 +34,16 @@ Current version `v0.2.1`, package `dsh-mutipleagent`. Compatible with DeepSeek H
 - Tooling: ESLint, Prettier, `.gitattributes`, CI (Node 22.19 / 24, browser acceptance, build freshness) and `npm run release`.
 
 ## Install
+
+### From npm
+
+The package is published to [npm](https://www.npmjs.com/package/dsh-mutipleagent); the npm version matches the plugin version:
+
+    dsh plugin --profile desktop add 'dsh-mutipleagent@0.2.1' --ignore-scripts
+
+Bump the version number when upgrading.
+
+### From a GitHub tag
 
 Quit Harness Desktop completely, then:
 

@@ -51,6 +51,7 @@ const rewriteReadme = text =>
     .replace(new RegExp(`(##\\s+v)${escapeRe(previous)}(\\s*更新)`), `$1${version}$2`)
     .replace(new RegExp(`(## What's new in v)${escapeRe(previous)}`), `$1${version}`)
     .replace(/refs\/tags\/v\d+\.\d+\.\d+/g, `refs/tags/v${version}`)
+    .replace(new RegExp(`${escapeRe(pkg.name)}@v?\\d+\\.\\d+\\.\\d+`, 'g'), `${pkg.name}@${version}`)
     .replace(new RegExp(`${escapeRe(pkg.name)}-\\d+\\.\\d+\\.\\d+\\.tgz`, 'g'), `${pkg.name}-${version}.tgz`);
 const readme = fs.readFileSync(readmePath, 'utf8');
 const english = fs.existsSync(englishPath) ? fs.readFileSync(englishPath, 'utf8') : '';

@@ -15,6 +15,7 @@
 ### 验证
 
 - 84 个测试全绿，新增两条覆盖增量路径：游标未变时不物化事件、租约每次都释放且观察失败时回退整份读取。
+- 已发布到 npm：`npm i dsh-mutipleagent@0.2.1`；安装后 `dsh` 元数据为 `bundle.patch=./cordis.patch.yml`、`client` 存在。
 
 ## v0.2.0 — 2026-11-10
 

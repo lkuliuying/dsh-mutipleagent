@@ -1,6 +1,7 @@
 # dsh-mutipleagent
 
 [![ci](https://github.com/lkuliuying/dsh-mutipleagent/actions/workflows/ci.yml/badge.svg)](https://github.com/lkuliuying/dsh-mutipleagent/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/dsh-mutipleagent.svg)](https://www.npmjs.com/package/dsh-mutipleagent)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [English](README.en.md) · 简体中文
@@ -39,7 +40,15 @@ DeepSeek Harness 多 Agent 3D 协作办公室插件。安装后从 Harness 侧�
 
 ## 安装到 Harness
 
-### 线上安装与更新
+### 从 npm 安装
+
+包已发布到 [npm](https://www.npmjs.com/package/dsh-mutipleagent)，版本号与插件版本一致：
+
+    dsh plugin --profile desktop add 'dsh-mutipleagent@0.2.1' --ignore-scripts
+
+升级时把 `0.2.1` 换成目标版本号。首次安装建议完全退出 Harness Desktop 后再执行，装完重新启动。
+
+### 从 GitHub 标签安装
 
 完全退出 Harness Desktop，在 PowerShell 运行以下命令，再重新启动 Harness：
 
@@ -49,7 +58,7 @@ DeepSeek Harness 多 Agent 3D 协作办公室插件。安装后从 Harness 侧�
 
     & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.2.1' --ignore-scripts
 
-上述命令既可首次安装，也可把原来固定在 `v0.1`～`v0.1.3` 的安装切换到 `v0.2.0`。安装源固定到具体标签，后续升级需改为目标版本的标签；仅重启不会切换版本。
+上述命令既可首次安装，也可把原来固定在 `v0.1`～`v0.1.3` 的安装切换到 `v0.2.1`。安装源固定到具体标签，后续升级需改为目标版本的标签；仅重启不会切换版本。
 
 ### 从本地源码打包
 
