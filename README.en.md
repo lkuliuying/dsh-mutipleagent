@@ -18,8 +18,11 @@ A 3D office for DeepSeek Harness multi-agent work. Every conversation page grows
 
 Generated from demo data with `npm run screenshots`. The interface ships in Chinese and English — switch with the 中 / EN control in the top bar. In live mode, task text, agent names and event previews stay exactly as they appear in your session logs, so they are not translated.
 
-Current version `v0.4.0`, package `dsh-mutipleagent`. Compatible with DeepSeek Harness `^0.2.2-rc.1` and Node.js `^22.19.0 || >=24.0.0`. See [CHANGELOG.md](CHANGELOG.md) for per-version notes and [Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases) for the published notes.
+Current version `v0.4.1`, package `dsh-mutipleagent`. Compatible with DeepSeek Harness `^0.2.2-rc.1` and Node.js `^22.19.0 || >=24.0.0`. See [CHANGELOG.md](CHANGELOG.md) for per-version notes and [Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases) for the published notes.
 
+## What's new in v0.4.1
+
+- Metadata only: `repository.url` is normalized to `git+https://`, so `npm publish` no longer reports that it auto-corrected `package.json`. Behaviour is identical to 0.4.0.
 ## What's new in v0.4.0
 
 - The office now fills a whole floor: a 4 × 3 grid of face-to-face pods (24 seats) where the lead agent and the first sub-agent share a table and sit across from each other, with back-to-back monitors down the middle and each side's keyboard, mouse and side screen facing its own seat. The room also gains a glass meeting room, equipment racks, bookshelves, a kitchen counter and a lounge corner.

@@ -18,10 +18,13 @@ DeepSeek Harness 多 Agent 3D 协作办公室插件。安装后，任意会话�
 
 以上为 `npm run screenshots` 生成的演示画面（演示数据，非真实会话）。
 
-当前版本为 `v0.4.0`，包名为 `dsh-mutipleagent`，仓库地址为 [lkuliuying/dsh-mutipleagent](https://github.com/lkuliuying/dsh-mutipleagent)。兼容 DeepSeek Harness `^0.2.2-rc.1`，需要 Node.js `^22.19.0 || >=24.0.0`。
+当前版本为 `v0.4.1`，包名为 `dsh-mutipleagent`，仓库地址为 [lkuliuying/dsh-mutipleagent](https://github.com/lkuliuying/dsh-mutipleagent)。兼容 DeepSeek Harness `^0.2.2-rc.1`，需要 Node.js `^22.19.0 || >=24.0.0`。
 
 各版本变化见 [CHANGELOG.md](CHANGELOG.md)，发布说明见 [GitHub Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases)。
 
+## v0.4.1 更新
+
+- 元数据对齐：`repository.url` 规范化为 `git+https://`，`npm publish` 不再提示自动修正 `package.json`；功能与 0.4.0 一致。
 ## v0.4.0 更新
 
 - 办公室场景铺满一整层：4 列 × 3 行「对坐工位」共 24 座，主 Agent 与第一位子 Agent 隔桌面对面；共享长桌中间是背靠背的双屏，两侧各配键鼠与副屏。房间同时补上玻璃会议室、设备柜、书架、茶水吧与休息角。

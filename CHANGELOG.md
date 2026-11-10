@@ -2,6 +2,17 @@
 
 本文件记录 `dsh-mutipleagent` 每个版本的变化。npm 版本号与 Git 标签一一对应（`0.1.x` ↔ `v0.1.x`），同一份说明也会发布在 [GitHub Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases) 页面，插件市场里的版本说明同样读取这些 release 正文。
 
+## v0.4.1 — 2026-11-10
+
+元数据对齐版本，功能与 0.4.0 完全一致。
+
+### 改进
+
+- `npm pkg fix` 结果入库：`repository.url` 规范化为 `git+https://github.com/lkuliuying/dsh-mutipleagent.git`。此前每次 `npm publish` 都会打印「auto-corrected some errors in your package.json」，现在源头已经正确，发布日志不再出现该提示。
+
+### 验证
+
+- `lint`、`format:check`、`check:compat`、`npm test`（84 pass）通过；`dsh-mutipleagent@0.4.0` 与 `0.4.1` 的 tarball 内容一致，仅 `package.json` 的 `repository.url` 不同。
 ## v0.4.0 — 2026-11-10
 
 办公室从「四个人围着几张桌子」变成一整层真实办公空间。
