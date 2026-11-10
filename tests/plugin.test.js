@@ -128,6 +128,11 @@ test('客户端通过同名原生侧栏与主面板注册，卸载释放注册�
   });
   assert.equal(registrations.find(row => row.options.name === 'main').options.key, 'dsh-mutipleagent');
   assert.equal(registrations.find(row => row.options.name === 'sidebar.panellist').options.id, 'dsh-mutipleagent');
+  // 会话页标签行：注册 conversation.view，并把当前 sessionId 注入组件 props。
+  const view = registrations.find(row => row.options.name === 'conversation.view');
+  assert.equal(view.options.id, 'dsh-mutipleagent');
+  assert.equal(typeof view.options.label(), 'string');
+  assert.equal(view.options.inject('session-under-test').sessionId, 'session-under-test');
   cleanups.reverse().forEach(dispose => dispose());
   assert.equal(registrations.length, 0);
   assert.equal(styles.length, 0);

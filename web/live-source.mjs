@@ -12,6 +12,8 @@ export class LiveSource extends EventTarget {
     this.storageKey = this.kind === 'harness' ? 'office.harness.live.root' : 'office.live.root';
     this.directoryKey = this.kind === 'harness' ? (localStorage.getItem('office.harness.live.directory') ?? null) : null;
     this.explicitRootId = rootId || null;
+    // 会话内视图（embed=1）由 Harness 注入当前会话，理论上不会失效；失效时退回列表而不是卡在错误页。
+    this.embed = new URLSearchParams(location.search).get('embed') === '1';
     this.raw = { source: this.kind };
     this.rootId = rootId || localStorage.getItem(this.storageKey) || '';
     this.follow = !rootId;
@@ -44,7 +46,9 @@ export class LiveSource extends EventTarget {
     try {
       let response = await fetch(officeUrl('api/sessions?' + new URLSearchParams(rootId ? { rootId } : {})), { signal: this.abort.signal });
       // 保存的会话可能已被删除；明确指定的地址则保留错误，供用户重新选择。
-      if (response.status === 404 && rootId && !new URLSearchParams(location.search).get('rootId')) {
+      if (response.status === 404 && rootId && (this.embed || !new URLSearchParams(location.search).get('rootId'))) {
+        this.explicitRootId = null;
+        this.follow = false;
         response = await fetch(officeUrl('api/sessions'), { signal: this.abort.signal });
       }
       const data = await response.json();

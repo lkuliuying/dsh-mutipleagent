@@ -5,7 +5,9 @@ import { applyOfficeBrand, officePage, officeSource } from './base-url.mjs';
 import { enhanceSelect, bindSearchNavigation, closeOfficeControls } from './office-controls.js';
 import { createNotificationState } from './notifications.mjs';
 import { locale, mountLangSwitch, onLangChange, t } from './i18n.mjs';
+import { initShell } from './shell.mjs';
 
+initShell();
 if (new URLSearchParams(location.search).get('mode') === 'live') startLiveOffice();
 else startDemo();
 
@@ -491,6 +493,11 @@ function startDemo() {
         onSelect: id => selectAgent(id),
         reduced: $('demo-reduced').checked,
         pins: $('scene-pins'),
+        pinFloor: () => {
+          const stats = document.querySelector('.stats');
+          const rect = stats && stats.getBoundingClientRect();
+          return rect && rect.height ? Math.round(rect.bottom) + 10 : 70;
+        },
       });
       scene = next;
       next.setTeam(snapshot.agents, 'main');

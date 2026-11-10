@@ -2,6 +2,70 @@
 
 本文件记录 `dsh-mutipleagent` 每个版本的变化。npm 版本号与 Git 标签一一对应（`0.1.x` ↔ `v0.1.x`），同一份说明也会发布在 [GitHub Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases) 页面，插件市场里的版本说明同样读取这些 release 正文。
 
+## v0.4.0 — 2026-11-10
+
+办公室从「四个人围着几张桌子」变成一整层真实办公空间。
+
+### 新增
+
+- 整层办公室场景：`collaborationScene` 重写为 4 列 × 3 行「对坐工位」，12 组共享长桌共 24 个座位铺满 23×21 的房间。每组一张 3.3×2.0 长桌，两位成员隔桌面对面就座（主 Agent 与第一位子 Agent 落在同一组）；桌心背靠背双屏、键鼠与副屏各朝自己一侧，桌心再加绿植与文件分隔。
+- 房间补齐家具：前区玻璃会议室（长桌、四把椅、投屏）、沿墙设备柜与 SSD 指示灯阵列、左墙书架与茶水吧、右墙资料柜、后区沙发与茶几，四周铺绿植。
+- 新增「隐藏面板」开关：`web/shell.mjs` 的 `initShell()` 绑定 `#toggle-shell`，一键把顶栏、统计卡、Agent 详情、工具条与任务协作流程全部收起，只留 3D 场景；右下角「显示面板」、再次点按钮或按出 `Esc` 恢复，`H` 键随时切换，状态存于 `localStorage` 的 `office.shell`。
+
+### 改进
+
+- 镜头对准房间中心并整体拉远（`fitCamera3D` 目标 `(11.5, 0.35, 11.5)`、可视高度 31），整层办公室都入画，底部工位不再被协作流程面板挡住。
+- 室外地坪从 44×44 扩到 440×440 并与背景同色（`#dde5ef`），去掉「悬空平台」的硬边；室内地面、地毯与工位色阶重新分层。
+- 工位台面改为浅色台面 + 蓝色前后沿 + 蓝色端板，12 组并排时不再糊成一片蓝。
+- 地面丝印文案（`COORDINATION` / `AGENT WORKSPACE` / `COLLABORATION LANE` / `VERIFICATION`）与斜纹按新走廊重新定位。
+- 场景里的成员标签会避让顶部统计卡，并按纵向顺序错开重叠，对坐工位上的四个名字不再互相遮挡。
+
+### 验证
+
+- 新增 `.artifacts/shell-check.cjs`：演示模式截图 4 位成员分坐两组对坐工位；断言点击「隐藏面板」后 `header.nav`、`.stats`、`#agent-details`、`#workflow-dock`、`.scene-tools` 全部不可见、`body[data-shell="scene"]` 生效、`#shell-restore` 出现，`Esc` 后恢复且刷新仍保持。
+- `.artifacts/embed-check.cjs`、`.artifacts/details-check.cjs` 继续通过；`npm run test:plugin:ui` 全部检查项通过（1500×1000 / 900×720 / 390×844 三档视口）；`npm test` 84 passed。
+
+## v0.3.1 — 2026-11-10
+
+会话内标签从「一格里的小画面」变成「整页画面」。
+
+### 改进
+
+- 打开「多 Agent 办公室」标签时收起会话页底部输入框（宿主源码里的 `[data-conversation-region="composer"]`，`flex: none` 无固定高度，收起后高度直接让给视图区），切回「对话」自动恢复；标签页内不需要打字。
+- 嵌入模式（`embed=1`）收起办公室自己的整条顶栏（搜索、会话下拉、计时、铃铛），协作统计与「Agent 详情」上移到标签页顶部；搜索与通知改用宿主自带的。
+
+- 「Agent 详情」面板把「查看任务详情」与「查看屏幕 / 查看任务原文」移到标题下方，左侧任务信息再长也不必先滚到面板底部；底部的「只读真实记录 · 在 DeepSeek Harness 中执行任务」小字删除。
+- 场景左下角的「拖动旋转 · 滚轮缩放 · 点击工位或显示器查看详情」在真实会话里隐藏（与左下角工具条重复）；任务协作流程标题下的说明改为单行省略，不再被硬裁。
+
+### 验证
+
+- 新增 `.artifacts/composer-check.cjs`：以最小 React 桩加载真实 `client.js`，断言挂载时 body 打标、输入框 `display:none`、视图区接管让出的高度、卸载后恢复。
+- `.artifacts/embed-check.cjs` 增加断言：`header.nav` 不可见、`.stats` 顶边对齐 14px。
+- 新增 `.artifacts/details-check.cjs`：1200×820 与 900×640 下打开详情面板，断言动作按钮落在面板可视范围内、`#detail-disclaimer` 已移除、面板未滚动。
+- `tests/plugin-browser.cjs` 增加 `assertDetailsActionsReachable`：紧凑视口打开面板后校验动作区无需滚动。
+
+## v0.3.0 — 2026-11-10
+
+办公室从「侧栏打开的面板」变成「会话页顶部标签行里的一个视图」，打开即绑定当前会话。
+
+### 新增
+
+- 注册 `conversation.view`（`id: dsh-mutipleagent`、`order: 30`、标签「多 Agent 办公室」），与「对话 / 轨迹 / 上下文」并列；标签行放不下时进入右侧「更多会话视图」菜单，可在菜单里固定或取消固定。
+- 视图拿到 `inject(sessionId)` 后以 `?mode=live&source=harness&rootId=<会话 ID>&embed=1` 打开办公室页面，切换会话或切回标签时按新会话重载 iframe。
+
+### 改进
+
+- 嵌入模式（`embed=1`）隐藏工作目录选择器，标题位显示当前会话名；与宿主重复的品牌、模式切换、语言切换、账号区一并隐藏，只留搜索 / 会话 / 通知。
+- 深链 `rootId` 指向的会话不在默认根列表（例如子 Agent 会话）时，以全量列表重试一次，不再停在「未找到该会话」。
+- `dsh.client.inject` 补充 `@deepseek-ai/dsh-client-ui-chat` 与 `@deepseek-ai/dsh-client-ui-conversation`，与被依赖的官方插件保持同样的加载顺序声明。
+- 侧栏 `sidebar.panellist` 入口与全局面板 `main` 注册保持不变，跨项目浏览仍走原来的路径。
+
+### 验证
+
+- `npm test` 84 通过；`tests/plugin.test.js` 新增会话视图注册断言（id、标签文案、`inject()` 回传会话 ID）。
+- `npm run test:plugin:ui`（1500 / 900 / 390 三档视口）通过。
+- 新增 `.artifacts/embed-check.cjs`：以夹具服务加载嵌入地址，断言目录选择器隐藏、标题为当前会话名、`#scenario` 为对应 ID，并确认不带 `embed` 的深链仍显示目录选择器。
+
 ## v0.2.1 — 2026-11-10
 
 只读真正变化的会话：功能与 v0.2.0 相同，读取路径更省。

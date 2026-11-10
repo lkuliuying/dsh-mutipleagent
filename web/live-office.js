@@ -24,6 +24,10 @@ export function startLiveOffice() {
   const notifyTypes = new Set(['assign', 'message', 'report', 'complete', 'approval', 'error', 'interrupted']);
   const notifyEvents = () => data.events.filter(event => notifyTypes.has(event.type));
   const source = new LiveSource(new URLSearchParams(location.search).get('rootId'));
+  // 由 Harness 会话视图打开时（embed=1，rootId 已确定）锁定当前会话，不再显示工作目录选择。
+  // 仅带 rootId 的普通深链保持原有行为：仍可切换目录与会话。
+  const pinned = new URLSearchParams(location.search).get('embed') === '1';
+  if (pinned) document.body.dataset.embed = 'true';
   const host = () => (source.kind === 'harness' ? 'DeepSeek Harness' : 'Codex');
   const empty = () => ({
     id: '',
@@ -393,7 +397,7 @@ export function startLiveOffice() {
     if (signature === rootSignature) return;
     rootSignature = signature;
     const harness = source.kind === 'harness';
-    $('directory-field').hidden = !harness;
+    $('directory-field').hidden = !harness || pinned;
     $('directory-field').parentElement.classList.toggle('harness-picker', harness);
     if (harness) {
       fillDirectories($('workspace-directory'));
@@ -481,6 +485,11 @@ export function startLiveOffice() {
         onSelect: select,
         reduced: $('demo-reduced').checked,
         pins: $('scene-pins'),
+        pinFloor: () => {
+          const stats = document.querySelector('.stats');
+          const rect = stats && stats.getBoundingClientRect();
+          return rect && rect.height ? Math.round(rect.bottom) + 10 : 70;
+        },
       }));
       instance.setTeam(agents(), data.rootId);
       instance.select(selectedId);
@@ -511,7 +520,6 @@ export function startLiveOffice() {
     $('metric-progress-title').textContent = t('livePage.progressTitle');
     $('event-mode').textContent = t('livePage.eventMode');
     $('detail-activity-label').textContent = t('livePage.activityLabel');
-    $('detail-disclaimer').textContent = t('livePage.disclaimer', { host: host() });
     $('dialog-mode').textContent = t('livePage.dialogMode');
     $('dialog-caption').textContent = t('livePage.dialogCaption');
     $('mode-select').setAttribute('aria-label', t('livePage.modeAria'));
@@ -540,7 +548,13 @@ export function startLiveOffice() {
       seen = new Set(data.events.map(e => e.id));
       pendingAnimations = [];
     }
-    $('workspace-name').textContent = source.kind === 'harness' ? t('livePage.session') : data.config.project;
+    const currentRoot = pinned ? data.roots?.find(root => root.id === data.rootId) : null;
+    $('workspace-name').textContent =
+      currentRoot != null
+        ? currentRoot.title?.replace(/\s+/g, ' ').trim() || t('common.unnamedSession')
+        : source.kind === 'harness'
+          ? t('livePage.session')
+          : data.config.project;
     $('workflow-subtitle').textContent = t('livePage.realSubtitle', { title: data.config.title });
     $('workflow-subtitle').title = data.config.title;
     $('metric-active').textContent = data.active;

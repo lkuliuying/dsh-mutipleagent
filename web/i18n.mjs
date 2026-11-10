@@ -273,6 +273,8 @@ const zh = {
   'demo.dialogCaption': '以上内容仅用于协作演示',
   'demo.closeDialog': '关闭任务弹窗',
   'demo.reduceMotion': '减少动画',
+  'demo.hidePanels': '隐藏面板',
+  'demo.showPanels': '显示面板',
 
   // 演示页：阶段
   'demo.stage.analysis': '分析与分配',
@@ -783,6 +785,8 @@ const en = {
   'demo.closeDialog': 'Close task dialog',
   'demo.reduceMotion': 'Reduce motion',
 
+  'demo.hidePanels': 'Hide panels',
+  'demo.showPanels': 'Show panels',
   'demo.stage.analysis': 'Analysis & assignment',
   'demo.stage.parallel': 'Parallel execution',
   'demo.stage.reports': 'Reporting',

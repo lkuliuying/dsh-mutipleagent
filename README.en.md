@@ -6,7 +6,7 @@
 
 English · [简体中文](README.md)
 
-A 3D office for DeepSeek Harness multi-agent work. Open it from the Harness sidebar and watch the real root session, its sub-agents, tool activity and final reports as characters at desks.
+A 3D office for DeepSeek Harness multi-agent work. Every conversation page grows a **Multi-Agent Office** tab next to Chat / Trajectory / Context — open it and the office is already showing that conversation, with no workspace or session picker in the way. The sidebar entry stays for cross-project browsing.
 
 **Read-only.** It never starts, pauses or approves tasks, never calls a model, never writes to a session, and never sends anything off the machine.
 
@@ -18,7 +18,26 @@ A 3D office for DeepSeek Harness multi-agent work. Open it from the Harness side
 
 Generated from demo data with `npm run screenshots`. The interface ships in Chinese and English — switch with the 中 / EN control in the top bar. In live mode, task text, agent names and event previews stay exactly as they appear in your session logs, so they are not translated.
 
-Current version `v0.2.1`, package `dsh-mutipleagent`. Compatible with DeepSeek Harness `^0.2.2-rc.1` and Node.js `^22.19.0 || >=24.0.0`. See [CHANGELOG.md](CHANGELOG.md) for per-version notes and [Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases) for the published notes.
+Current version `v0.4.0`, package `dsh-mutipleagent`. Compatible with DeepSeek Harness `^0.2.2-rc.1` and Node.js `^22.19.0 || >=24.0.0`. See [CHANGELOG.md](CHANGELOG.md) for per-version notes and [Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases) for the published notes.
+
+## What's new in v0.4.0
+
+- The office now fills a whole floor: a 4 × 3 grid of face-to-face pods (24 seats) where the lead agent and the first sub-agent share a table and sit across from each other, with back-to-back monitors down the middle and each side's keyboard, mouse and side screen facing its own seat. The room also gains a glass meeting room, equipment racks, bookshelves, a kitchen counter and a lounge corner.
+- Hide everything but the scene: click the button in the scene toolbar (or press `H`) to collapse the top bar, stat cards, agent details and the workflow dock; use the "Show panels" pill or press `Esc` to bring them back. The choice is stored locally and survives reloads.
+- The camera is pulled back and centred so the whole floor is in frame, and the outdoor ground now matches the background colour, so the office no longer floats on a hard-edged slab and the bottom row of desks stays clear of the workflow dock.
+
+## What's new in v0.3.1
+
+- Opening the Multi-Agent Office tab hides the conversation composer, and returning to Chat restores it — the picture gains a whole block of height.
+- Embed mode also drops the office's own top bar (search, Session dropdown, clock, bell); the collaboration stats and Agent details move up to the top of the tab.
+- Inside the details panel the primary action and the "view screen / view task source" links now sit right under the header, so nothing needs scrolling; the footer note and the scene drag hint are gone, and the workflow caption is clamped to one line.
+
+## What's new in v0.3.0
+
+- The office is a conversation view: it registers `conversation.view` and sits in the tab row beside Chat / Trajectory / Context, folding into the "More views" menu when the row is narrow. No panel-first, no picking a directory and then a session.
+- Opening the tab pins the current session: the frame loads with `?mode=live&source=harness&rootId=<session id>&embed=1`, the directory picker is hidden and the title becomes the session title. Switching conversation or tab reloads the frame for the new session, and a session missing from the default root list (sub-agents, for example) falls back to the full list instead of failing.
+- Embed mode trims the chrome the host already provides: brand, mode switch, language switch and account section are hidden, leaving search, sessions and notifications.
+- The sidebar entry and the global panel are unchanged.
 
 ## What's new in v0.2.1
 
@@ -53,7 +72,7 @@ If `dsh` is not on `PATH`, use the bundled CLI:
 
     & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.2.1' --ignore-scripts
 
-Restart Harness and pick **Multi-Agent Office** in the sidebar. No API key, no separate server, nothing else to configure.
+Restart Harness and open **Multi-Agent Office** from any conversation's tab row (or from the sidebar for the cross-project view). No API key, no separate server, nothing else to configure.
 
 To build from source instead:
 
@@ -66,7 +85,7 @@ To build from source instead:
 
 - **Desks, not dashboards.** Agents sit down, face their monitor and type; screens show current status and the latest event. Task hand-offs and reports travel as light trails from screen to screen.
 - **Screen detail.** Click any monitor for the real agent, status, task, model/tool and recent events. Esc, overlay and a close button all work; narrow screens switch to a readable text layout.
-- **Session picker.** Choose a workspace directory, then a session inside it. Search by path, title, time or short ID; identical titles stay distinguishable. Your last choice is remembered.
+- **Session picker, when you want it.** The sidebar view asks for a workspace directory, then a session inside it. Search by path, title, time or short ID; identical titles stay distinguishable. Your last choice is remembered.
 - **Notification centre.** Unread dot clears against a read anchor, with "mark all read", category icons and a compact three-line summary.
 - **Graceful degradation.** Without WebGL the team tree, activity log and reports still work, and "reduce motion" is one checkbox away.
 - **Bilingual UI.** Chinese and English, switchable in the header and remembered locally.

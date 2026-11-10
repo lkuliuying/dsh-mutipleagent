@@ -2,39 +2,72 @@ import * as THREE from 'three';
 import { TeamOffice } from './team-office.js';
 import { hasKey, locale, onLangChange, t } from './i18n.mjs';
 
-const STATIONS = [
-  { x: 5.5, y: 5.35, yaw: 180, pose: 'sit' },
-  { x: 5.5, y: 12.0, yaw: 180, pose: 'sit' },
-  { x: 11.2, y: 9.4, yaw: 180, pose: 'sit' },
-  { x: 16.9, y: 6.5, yaw: 180, pose: 'sit' },
-];
+// 办公室平面：4 列 × 3 行「对坐工位」，每组一张共享长桌、两位成员面对面。
+const POD_X = [4.5, 9.1, 13.7, 18.3];
+const POD_Z = [6.2, 11.2, 16.2];
+const ROOM_W = 23;
+const ROOM_D = 21;
 const COLORS = { blue: '#1769e8', white: '#f6f9fe', steel: '#d2dce8', navy: '#233d61' };
 const model = (f, x, y, w, d, options = {}) => ({ f, x, y, w, d, ...options });
 const box = (x, y, w, d, h, color, y0 = 0) => ({ special: 'box', x, y, w, d, h, color, y0, abs: true });
 
-export function collaborationScene(count = 4, source = 'codex') {
-  const stations = STATIONS.map(station => ({ ...station }));
-  for (let slot = stations.length; slot < count; slot++) {
-    const extra = slot - STATIONS.length;
-    stations.push({ x: 5.5 + (extra % 3) * 5.7, y: 21.5 + Math.floor(extra / 3) * 5.5, yaw: 180, pose: 'sit' });
+/**
+ * 一张共享长桌 + 两位面对面的成员。
+ * 北侧成员朝南（yaw 0）、南侧成员朝北（yaw 180），显示器在桌心背靠背。
+ */
+function facingPod({ props, solid, stations }, x, zc) {
+  props.push({ special: 'floor', x: x - 2.05, y: zc - 2.0, w: 4.1, d: 4.0, color: '#e4ebf5', color2: '#dde6f1', y0: 0.02 });
+  // 白台体 + 浅色台面 + 蓝色前后沿 + 两侧端板
+  props.push(box(x - 1.65, zc - 0.8, 3.3, 1.6, 0.9, '#f7faff'));
+  props.push(box(x - 1.7, zc - 0.85, 3.4, 1.7, 0.06, '#eaf1fb', 0.9));
+  props.push(box(x - 1.7, zc - 0.85, 3.4, 0.14, 0.09, '#176de8', 0.9));
+  props.push(box(x - 1.7, zc + 0.71, 3.4, 0.14, 0.09, '#176de8', 0.9));
+  props.push(box(x - 1.7, zc - 0.85, 0.07, 1.7, 0.96, '#397bd5'));
+  props.push(box(x + 1.63, zc - 0.85, 0.07, 1.7, 0.96, '#397bd5'));
+  // 桌心背靠背主屏：北屏朝北（面向北侧成员），南屏朝南。
+  props.push(model('computerScreen', x - 0.64, zc - 0.34, 1.02, 0.34, { h: 0.62, y0: 0.96, abs: true, rot: 180 }));
+  props.push(model('computerScreen', x - 0.64, zc + 0.34, 1.02, 0.34, { h: 0.62, y0: 0.96, abs: true, rot: 0 }));
+  // 侧屏（略微内倾）
+  props.push(model('computerScreen', x + 0.56, zc - 0.5, 0.74, 0.3, { h: 0.5, y0: 0.96, abs: true, rot: 192 }));
+  props.push(model('computerScreen', x + 0.56, zc + 0.5, 0.74, 0.3, { h: 0.5, y0: 0.96, abs: true, rot: 12 }));
+  // 键鼠各贴近自己一侧
+  props.push(model('computerKeyboard', x - 0.62, zc - 0.8, 0.72, 0.22, { y0: 0.96, abs: true }));
+  props.push(model('computerKeyboard', x - 0.62, zc + 0.58, 0.72, 0.22, { y0: 0.96, abs: true, rot: 180 }));
+  props.push(model('computerMouse', x + 0.12, zc - 0.78, 0.13, 0.18, { y0: 0.96, abs: true }));
+  props.push(model('computerMouse', x + 0.12, zc + 0.6, 0.13, 0.18, { y0: 0.96, abs: true, rot: 180 }));
+  // 桌心绿植与文件，填补两国之间的空隙
+  props.push(model('plantSmall1', x + 1.25, zc - 0.16, 0.32, 0.32, { h: 0.42, y0: 0.96, abs: true }));
+  props.push(model('books', x - 1.42, zc + 0.16, 0.5, 0.3, { h: 0.16, y0: 0.96, abs: true }));
+  props.push(model('books', x + 1.24, zc + 0.4, 0.32, 0.22, { h: 0.14, y0: 0.96, abs: true }));
+  // 两把椅子：北侧朝南、南侧朝北
+  props.push(model('chairDesk', x - 0.375, zc - 1.75, 0.75, 0.8, { h: 1.0, rot: 0 }));
+  props.push(model('chairDesk', x - 0.375, zc + 0.95, 0.75, 0.8, { h: 1.0, rot: 180 }));
+  for (const [chairX, chairZ, yaw] of [
+    [x - 0.375, zc - 1.75, 0],
+    [x - 0.375, zc + 1.35, 180],
+  ]) {
+    stations.push({ x: chairX + 0.375, y: chairZ + 0.4, yaw, pose: 'sit' });
   }
-  const depth = Math.max(20, ...stations.map(station => station.y + 2.8));
+  solid.push([x - 1.7, zc - 0.85, 3.4, 1.7]);
+}
+
+export function collaborationScene(count = 4, source = 'codex') {
   const props = [
-    { special: 'floor', x: -12, y: -12, w: 48, d: depth + 26, color: '#dce4ee', color2: '#d2dce8', tile: 8 },
-    { special: 'floor', x: 0.1, y: 0.1, w: 22, d: depth - 2.1, color: '#e9edf3', color2: '#dee5ee', tile: 4.2, y0: 0.012 },
+    { special: 'floor', x: -200, y: -210, w: 440, d: 440, color: '#dde5ef', color2: '#d6dfeb', tile: 8 },
+    { special: 'floor', x: 0.1, y: 0.1, w: ROOM_W - 0.4, d: ROOM_D - 0.5, color: '#e9edf3', color2: '#dee5ee', tile: 4.2, y0: 0.012 },
     {
       special: 'wall',
       axis: 'x',
       x: -1,
       y: 0.05,
-      len: 25,
+      len: ROOM_W + 2,
       h: 4.3,
       color: '#e7eef7',
       holes: [
         [1.1, 4.5, 1.3, 3.8],
-        [7.0, 4.5, 1.3, 3.8],
-        [13, 4.5, 1.3, 3.8],
-        [19, 3.5, 1.3, 3.8],
+        [7.4, 4.5, 1.3, 3.8],
+        [13.6, 4.5, 1.3, 3.8],
+        [19.2, 3.5, 1.3, 3.8],
       ],
       frame: '#c3cfdf',
     },
@@ -43,107 +76,120 @@ export function collaborationScene(count = 4, source = 'codex') {
       axis: 'z',
       x: 0.05,
       y: 0,
-      len: depth,
+      len: ROOM_D,
       h: 3.4,
       color: '#e4ebf5',
       holes: [
-        [2, 3, 1.1, 2.9],
-        [7, 3, 1.1, 2.9],
-        [13, 3, 1.1, 2.9],
+        [2.4, 3, 1.1, 2.9],
+        [8.0, 3, 1.1, 2.9],
+        [14.0, 3, 1.1, 2.9],
       ],
       frame: '#c7d2e1',
     },
-    box(0, 0.15, 22, 0.1, 0.12, '#bbcbdc'),
-    box(0.15, 0, 0.1, depth - 2, 0.12, '#bbcbdc'),
-    { special: 'floor', x: 1.2, y: 1.8, w: 6.5, d: 5.2, color: '#d6e3ef', color2: '#d6e3ef', y0: 0.02 },
-    { special: 'glass', x: 7.65, y: 1.7, w: 0.05, d: 4.9, h: 2.5, abs: true },
-    box(7.6, 1.7, 0.12, 4.9, 0.07, '#9cacbf', 2.5),
-    box(7.6, 1.7, 0.1, 0.1, 2.5, '#becddd'),
-    box(7.6, 6.5, 0.1, 0.1, 2.5, '#becddd'),
-    model('table', 3.0, 3.4, 3.8, 1.6, { h: 0.88, stretch: true }),
-    model('laptop', 4.6, 3.8, 0.7, 0.6, { y0: 0.9, abs: true, rot: 180 }),
-    model('computerScreen', 5.2, 4.3, 0.95, 0.32, { h: 0.6, y0: 0.9, abs: true, rot: 0 }),
-    model('computerKeyboard', 5.15, 4.72, 0.7, 0.22, { y0: 0.9, abs: true }),
-    model('computerMouse', 5.95, 4.72, 0.12, 0.18, { y0: 0.9, abs: true }),
-    model('chairDesk', 5.125, 4.95, 0.75, 0.8, { h: 1.0, rot: 180 }),
-    model('chairModernCushion', 3.2, 5.1, 0.65, 0.7, { rot: 180 }),
-    model('chairModernCushion', 3.2, 2.6, 0.65, 0.7),
-    model('chairModernCushion', 5.6, 2.6, 0.65, 0.7),
-    model('bookcaseOpen', 1.1, 0.35, 2.5, 0.5, { h: 1.8 }),
-    model('books', 1.3, 0.5, 1.4, 0.25, { h: 0.3, y0: 1, abs: true }),
-    model('pottedPlant', 7, 0.7, 0.6, 0.6, { h: 1.6 }),
-    model('pottedPlant', 0.7, 7.0, 0.55, 0.55, { h: 1.4 }),
+    box(0, 0.15, ROOM_W - 1, 0.1, 0.12, '#bbcbdc'),
+    box(0.15, 0, 0.1, ROOM_D - 1, 0.12, '#bbcbdc'),
+  ];
+  const solid = [];
+  const stations = [];
+
+  // 全部 12 组对坐工位铺满房间；主 Agent 与第一位子 Agent 落在同一组、面对面。
+  for (const zc of POD_Z) {
+    for (const x of POD_X) facingPod({ props, solid, stations }, x, zc);
+  }
+  // 人数超过 24 座时的兜底：后方追加简易单人工位，保证不丢成员。
+  for (let slot = stations.length; slot < count; slot++) {
+    const extra = slot - stations.length;
+    const x = POD_X[extra % POD_X.length];
+    const y = POD_Z[POD_Z.length - 1] + 3.4;
+    props.push(box(x - 1.65, y - 1.65, 3.3, 1.0, 0.92, '#f7faff'));
+    props.push(box(x - 1.7, y - 1.7, 3.4, 1.1, 0.08, COLORS.blue, 0.92));
+    props.push(model('computerScreen', x - 0.6, y - 1.5, 1.0, 0.35, { h: 0.62, y0: 1.0, abs: true }));
+    props.push(model('chairDesk', x - 0.375, y - 0.4, 0.75, 0.8, { h: 1.0, rot: 180 }));
+    solid.push([x - 1.7, y - 1.7, 3.4, 1.1]);
+    stations.push({ x, y: y + 0.35, yaw: 180, pose: 'sit' });
+  }
+
+  // 前区：玻璃会议室 + 设备柜
+  props.push(
+    { special: 'floor', x: 1.2, y: 1.1, w: 5.6, d: 3.0, color: '#dbe6f2', color2: '#dbe6f2', y0: 0.03 },
+    { special: 'glass', x: 6.85, y: 1.1, w: 0.05, d: 3.0, h: 2.5, abs: true },
+    box(6.8, 1.1, 0.12, 3.0, 0.07, '#9cacbf', 2.5),
+    box(6.8, 1.1, 0.1, 0.1, 2.5, '#becddd'),
+    box(6.8, 4.0, 0.1, 0.1, 2.5, '#becddd'),
+    model('table', 1.9, 1.7, 3.2, 1.5, { h: 0.86, stretch: true }),
+    model('laptop', 3.1, 2.1, 0.7, 0.6, { y0: 0.88, abs: true, rot: 180 }),
+    model('computerScreen', 4.2, 4.42, 0.92, 0.3, { h: 0.56, y0: 0.88, abs: true, rot: 180 }),
+    model('computerKeyboard', 4.15, 4.15, 0.66, 0.2, { y0: 0.88, abs: true }),
+    model('computerMouse', 4.85, 4.15, 0.12, 0.17, { y0: 0.88, abs: true }),
+    model('chairModernCushion', 2.6, 3.5, 0.65, 0.7, { rot: 180 }),
+    model('chairModernCushion', 2.6, 1.0, 0.65, 0.7),
+    model('chairModernCushion', 4.0, 3.5, 0.65, 0.7, { rot: 180 }),
+    model('chairModernCushion', 4.0, 1.0, 0.65, 0.7),
+    model('pottedPlant', 6.3, 4.1, 0.6, 0.6, { h: 1.5 }),
+  );
+  solid.push([1.9, 1.7, 3.2, 1.5], [6.8, 1.1, 0.12, 2.9]);
+  for (const [sx, sz] of [
+    [9.6, 0.9],
+    [11.5, 0.9],
+    [15.4, 0.9],
+    [17.3, 0.9],
+    [21.4, 2.0],
+  ]) {
+    props.push(box(sx, sz, 1.7, 0.95, 2.6, '#e9eff6'));
+    for (const dx of [0, 1.63]) props.push(box(sx + dx, sz, 0.07, 0.95, 2.7, COLORS.blue));
+    for (const h of [0.18, 0.72, 1.26, 1.8, 2.34]) {
+      props.push(box(sx + 0.12, sz + 0.92, 1.46, 0.05, 0.35, '#455b78', h));
+      props.push({ special: 'glow', x: sx + 0.22, y: sz + 0.975, y0: h + 0.12, w: 0.12, d: 0.025, h: 0.035, color: '#52b9ff', intensity: 1.0, abs: true });
+    }
+    solid.push([sx, sz, 1.7, 0.95]);
+  }
+  // 左墙：书架 + 茶水吧
+  props.push(
+    model('bookcaseOpen', 0.45, 3.2, 0.5, 2.6, { h: 1.8 }),
+    model('books', 0.55, 3.4, 0.35, 2.2, { h: 0.3, y0: 1.0, abs: true }),
+    model('kitchenCabinet', 0.45, 8.2, 1.5, 3.6, { h: 1, stretch: true }),
+    model('kitchenCoffeeMachine', 0.5, 8.8, 0.6, 0.55, { h: 0.65, y0: 1.01, abs: true }),
+    model('kitchenSink', 0.55, 10.6, 0.9, 0.7, { h: 0.15, y0: 1.01, abs: true }),
+    model('pottedPlant', 0.9, 5.8, 0.55, 0.55, { h: 1.4 }),
+    model('pottedPlant', 0.9, 13.2, 0.6, 0.6, { h: 1.5 }),
+  );
+  // 右墙：资料柜与档案架
+  props.push(
+    model('bookcaseOpen', 21.3, 6.0, 0.55, 3.0, { h: 1.9 }),
+    model('books', 21.4, 6.2, 0.4, 2.6, { h: 0.32, y0: 1.05, abs: true }),
+    model('bookcaseOpen', 21.3, 11.4, 0.55, 3.0, { h: 1.9 }),
+    model('books', 21.4, 11.6, 0.4, 2.6, { h: 0.32, y0: 1.05, abs: true }),
+    model('pottedPlant', 21.2, 16.0, 0.65, 0.65, { h: 1.6 }),
+    model('pottedPlant', 21.4, 19.1, 0.6, 0.6, { h: 1.4 }),
+  );
+  // 后区：休息角
+  props.push(
+    model('loungeSofa', 8.2, 19.2, 3.8, 1.3, { h: 1.05 }),
+    model('tableCoffee', 8.9, 17.9, 2.0, 0.8, { h: 0.5 }),
+    model('books', 9.3, 18.1, 0.5, 0.3, { h: 0.18, y0: 0.52, abs: true }),
+    model('pottedPlant', 6.2, 19.3, 0.7, 0.7, { h: 1.5 }),
+    model('cardboardBoxClosed', 12.6, 19.6, 0.55, 0.5, { h: 0.45 }),
     {
       special: 'sign',
-      x: 4.5,
+      x: 4.2,
       y: 0.12,
-      z: 2.75,
+      z: 3.1,
       w: 3.0,
       h: 0.64,
       text: t(source === 'harness' ? 'scene.sign.harness' : 'scene.sign.codex'),
       bg: '#f0f5fc',
       fg: '#265a9d',
     },
-  ];
-  const solid = [
-    [3, 3.4, 3.8, 1.6],
-    [7.6, 1.7, 0.12, 4.8],
-  ];
-  // 保留原四人工位构图，额外成员沿后方新增工作区。
-  for (const station of stations.slice(1)) {
-    const { x, y } = station;
-    props.push(
-      { special: 'floor', x: x - 2.2, y: y - 2.7, w: 4.5, d: 3.9, color: '#e1e9f3', color2: '#e1e9f3', y0: 0.024 },
-      box(x - 1.65, y - 1.65, 3.3, 1.0, 0.92, '#f7faff'),
-      box(x - 1.7, y - 1.7, 3.4, 1.1, 0.08, '#176de8', 0.92),
-      box(x - 1.7, y - 1.7, 0.07, 1.1, 0.96, '#397bd5'),
-      box(x + 1.63, y - 1.7, 0.07, 1.1, 0.96, '#397bd5'),
-      model('computerScreen', x - 0.6, y - 1.5, 1.0, 0.35, { h: 0.62, y0: 1.0, abs: true, rot: 0 }),
-      model('computerScreen', x + 0.45, y - 1.45, 0.75, 0.3, { h: 0.53, y0: 1.0, abs: true, rot: -12 }),
-      model('computerKeyboard', x - 0.45, y - 0.74, 0.75, 0.22, { y0: 1.02, abs: true }),
-      model('computerMouse', x + 0.45, y - 0.72, 0.13, 0.18, { y0: 1.02, abs: true }),
-      model('chairDesk', x - 0.375, y - 0.4, 0.75, 0.8, { h: 1.0, rot: 180 }),
-      model('plantSmall1', x - 1.3, y - 1.3, 0.3, 0.3, { h: 0.4, y0: 1.02, abs: true }),
-      model('cardboardBoxClosed', x + 1.0, y + 0.35, 0.55, 0.5, { h: 0.45 }),
-    );
-    solid.push([x - 1.7, y - 1.7, 3.4, 1.1]);
-  }
-  // 设备岛和资料柜提供远景密度，中央通道留给协作路径。
-  for (const [sx, sz] of [
-    [10.1, 1.4],
-    [13.0, 1.4],
-    [16.0, 1.4],
-    [19.0, 1.4],
-    [20.3, 7.3],
-    [20.3, 10.4],
-  ]) {
-    props.push(box(sx, sz, 1.8, 1.0, 2.6, '#e9eff6'));
-    for (const dx of [0, 1.73]) props.push(box(sx + dx, sz, 0.07, 1.0, 2.7, COLORS.blue));
-    for (const h of [0.18, 0.72, 1.26, 1.8, 2.34]) {
-      props.push(box(sx + 0.12, sz + 0.97, 1.55, 0.05, 0.35, '#455b78', h));
-      props.push({ special: 'glow', x: sx + 0.23, y: sz + 1.025, y0: h + 0.12, w: 0.12, d: 0.025, h: 0.035, color: '#52b9ff', intensity: 1.0, abs: true });
-    }
-    solid.push([sx, sz, 1.8, 1.0]);
-  }
-  props.push(
-    model('loungeSofa', 15.5, 14.7, 3.8, 1.3, { h: 1.05 }),
-    model('tableCoffee', 16.4, 16.2, 2.1, 0.8, { h: 0.5 }),
-    model('books', 16.9, 16.4, 0.5, 0.3, { h: 0.18, y0: 0.52, abs: true }),
-    model('kitchenCabinet', 1.0, 17.0, 4.0, 0.9, { h: 1, stretch: true }),
-    model('kitchenCoffeeMachine', 1.4, 17.2, 0.65, 0.5, { h: 0.65, y0: 1.01, abs: true }),
-    model('kitchenSink', 3.4, 17.1, 1.0, 0.7, { h: 0.15, y0: 1.01, abs: true }),
-    model('pottedPlant', 20.7, 15.7, 0.7, 0.7, { h: 1.5 }),
-    model('pottedPlant', 8.7, 16.8, 0.6, 0.6, { h: 1.5 }),
-    { special: 'sign', x: 17.5, y: 0.12, z: 3.0, w: 3.2, h: 0.65, text: t('scene.sign.agents'), bg: '#edf4fe', fg: '#3d6591' },
+    { special: 'sign', x: 17.4, y: 0.12, z: 3.1, w: 3.2, h: 0.65, text: t('scene.sign.agents'), bg: '#edf4fe', fg: '#3d6591' },
   );
   return {
-    W: 23,
-    D: depth,
+    W: ROOM_W,
+    D: ROOM_D,
     viewH: 4.3,
-    background: '#e7edf7',
+    background: '#dde5ef',
     sky: '#dcecff',
-    spawn: { x: 1, y: 15 },
-    walk: [[0, 0, 23, depth]],
+    spawn: { x: 1, y: 18.4 },
+    walk: [[0, 0, ROOM_W, ROOM_D]],
     solid,
     stations,
     pois: [],
@@ -159,9 +205,11 @@ function disposeObject(object) {
 }
 
 export class DemoScene extends TeamOffice {
-  constructor(root, { onSelect, reduced = false, pins, count = 4, live = false, source = 'codex' }) {
+  constructor(root, { onSelect, reduced = false, pins, pinFloor, count = 4, live = false, source = 'codex' }) {
     super(root, { count, onSelect, reduced, live, scene: collaborationScene(count, source) });
     this.pins = pins;
+    // 顶部浮层（协作统计卡等）会盖住 pin，给它一条不能被越过的上边线。
+    this.pinFloor = typeof pinFloor === 'function' ? pinFloor : () => 70;
     this.selectCallback = onSelect;
     this.routeGroup = null;
     this.routeId = null;
@@ -182,7 +230,7 @@ export class DemoScene extends TeamOffice {
     });
     if (this.gl) {
       this.gl.toneMappingExposure = 1.15;
-      this.gl.setClearColor('#e7edf7');
+      this.gl.setClearColor('#dde5ef');
       this.hemi.color.set('#f2f8ff');
       this.hemi.groundColor.set('#a2b2ca');
       this.sun.color.set('#ffffff');
@@ -194,38 +242,38 @@ export class DemoScene extends TeamOffice {
   fitCamera3D(reset) {
     if (!this.camera || !this.controls || !this.sun) return;
     const narrow = this.cw < 850;
-    const extraDepth = Math.max(0, this.plan.D - 20);
-    const target = new THREE.Vector3(narrow ? 10.2 : 12.65, 0.35, (narrow ? 8.8 : 8.15) + extraDepth * 0.45);
+    // 房间铺满 23×21，镜头对准中心并整体拉远，让整层办公室都入画。
+    const target = new THREE.Vector3(narrow ? 10.6 : 11.5, 0.35, narrow ? 10.4 : 11.5);
     if (reset || !this.fitted) {
-      this.camera.position.copy(target).add(new THREE.Vector3(22, 21.5, 22));
+      this.camera.position.copy(target).add(new THREE.Vector3(24, 23.5, 24));
       this.controls.target.copy(target);
       this.camera.zoom = 1;
       this.fitted = true;
     }
-    const height = (narrow ? 21 : Math.max(19.5, (28.0 * this.ch) / this.cw)) + extraDepth * 0.85;
+    const height = narrow ? 32 : Math.max(31, (36.0 * this.ch) / this.cw);
     const width = (height * this.cw) / this.ch;
     Object.assign(this.camera, { left: -width / 2, right: width / 2, top: height / 2, bottom: -height / 2 });
     this.camera.lookAt(this.controls.target);
     this.camera.updateProjectionMatrix();
-    this.sun.position.set(5, 19, 7);
-    this.sun.target.position.set(11, 0, 9 + extraDepth * 0.5);
-    const shadowSize = 18 + extraDepth;
-    Object.assign(this.sun.shadow.camera, { left: -shadowSize, right: shadowSize, top: shadowSize, bottom: -shadowSize, near: 1, far: 55 + extraDepth });
+    this.sun.position.set(3, 22, 5);
+    this.sun.target.position.set(11.5, 0, 10.5);
+    const shadowSize = 22;
+    Object.assign(this.sun.shadow.camera, { left: -shadowSize, right: shadowSize, top: shadowSize, bottom: -shadowSize, near: 1, far: 72 });
     this.sun.shadow.camera.updateProjectionMatrix();
   }
 
   build() {
     super.build();
-    this.floorMark('COORDINATION', 4.8, 7.1, 3.9, 0.55);
-    this.floorMark('AGENT WORKSPACE', 4.5, 14.0, 4.4, 0.5);
-    this.floorMark('COLLABORATION LANE', 11.0, 12.6, 5.2, 0.55);
-    this.floorMark('VERIFICATION', 16.5, 9.0, 3.9, 0.5);
+    this.floorMark('COORDINATION', 11.5, 3.35, 5.0, 0.6);
+    this.floorMark('AGENT WORKSPACE', 4.5, 8.7, 4.4, 0.5);
+    this.floorMark('COLLABORATION LANE', 15.5, 13.7, 5.2, 0.55);
+    this.floorMark('VERIFICATION', 11.5, 18.8, 3.9, 0.5);
     const stripes = new THREE.Group();
     for (let i = 0; i < 8; i++) {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 1.3), new THREE.MeshStandardMaterial({ color: '#f6faff', roughness: 0.9 }));
       m.rotation.x = -Math.PI / 2;
       m.rotation.z = -0.55;
-      m.position.set(8.0 + i * 0.45, 0.03, 15.3);
+      m.position.set(9.4 + i * 0.45, 0.03, 13.7);
       stripes.add(m);
     }
     this.room.add(stripes);
@@ -399,15 +447,54 @@ export class DemoScene extends TeamOffice {
 
   updatePins() {
     if (!this.pins || !this.camera || !this.loaded) return;
+    const floor = Math.max(70, this.pinFloor() || 0);
+    // 先算锚点，再按 y 从上到下排开重叠的标签，避免对坐工位挤在一起看不出谁是谁。
+    const entries = [];
     for (const pin of this.pins.children) {
       const p = this.people.get(pin.dataset.agent);
       if (!p) continue;
       const v = new THREE.Vector3(p.x, 2.2, p.y - 0.4).project(this.camera);
       const x = (v.x + 1) * 0.5 * this.cw,
         y = (1 - v.y) * 0.5 * this.ch;
-      pin.style.left = x + 'px';
-      pin.style.top = y + 'px';
-      pin.hidden = v.z > 1 || x < -40 || x > this.cw + 40 || y < 70 || y > this.ch - 70;
+      const w = pin.offsetWidth || 110,
+        h = pin.offsetHeight || 40;
+      const anchor = Math.max(y, floor + h);
+      entries.push({
+        pin,
+        x,
+        y,
+        w,
+        h,
+        top: anchor - h,
+        bottom: anchor,
+        hidden: v.z > 1 || x < -40 || x > this.cw + 40 || y < floor - 56 || y > this.ch - 70,
+      });
+    }
+    entries.sort((a, b) => a.top - b.top || a.x - b.x);
+    const placed = [];
+    for (const entry of entries) {
+      if (entry.hidden) continue;
+      for (let guard = 0; guard < 6; guard += 1) {
+        const hit = placed.find(
+          other =>
+            entry.x + entry.w / 2 > other.left - 8 && entry.x - entry.w / 2 < other.right + 8 && entry.top < other.bottom + 6 && entry.bottom > other.top - 6,
+        );
+        if (!hit) break;
+        const shift = hit.bottom + 8 - entry.top;
+        entry.top += shift;
+        entry.bottom += shift;
+      }
+      placed.push({
+        left: entry.x - entry.w / 2,
+        right: entry.x + entry.w / 2,
+        top: entry.top,
+        bottom: entry.bottom,
+      });
+    }
+    for (const entry of entries) {
+      entry.pin.style.left = entry.x + 'px';
+      entry.pin.style.top = entry.bottom + 'px';
+      entry.pin.hidden = entry.hidden;
     }
   }
 

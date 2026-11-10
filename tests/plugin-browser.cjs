@@ -33,6 +33,26 @@ async function choosePicker(frame, id, value, query = '', filterable = true) {
   await frame.waitForFunction(([key, selected]) => document.getElementById(key).value === selected, [id, value]);
 }
 
+async function assertDetailsActionsReachable(frame) {
+  const state = await frame.evaluate(() => {
+    const panel = document.getElementById('agent-details');
+    const box = panel.getBoundingClientRect();
+    const report = document.getElementById('view-report').getBoundingClientRect();
+    return {
+      disclaimer: document.getElementById('detail-disclaimer') !== null,
+      scrollTop: panel.scrollTop,
+      reportVisible: report.width > 0 && report.height > 0,
+      reportInside: report.top >= box.top && report.bottom <= box.bottom,
+      taskInRow: document.getElementById('view-task').closest('.detail-actions-row') !== null,
+    };
+  });
+  assert.equal(state.disclaimer, false, '面板底部不应再有说明小字');
+  assert.equal(state.reportVisible, true, '查看任务详情按钮应可见');
+  assert.equal(state.reportInside, true, '查看任务详情按钮无需滚动即可见');
+  assert.equal(state.taskInRow, true, '查看任务原文应与查看屏幕同处一行');
+  assert.equal(state.scrollTop, 0, '打开面板时不应处于滚动状态');
+}
+
 async function assertPanelWithinViewport(panel) {
   assert.ok(
     await panel.evaluate(element => {
@@ -431,6 +451,7 @@ class HarnessFixture extends DemoWatcher {
     );
     await frame.locator('#open-details').click();
     assert.equal(await frame.locator('#agent-details').isVisible(), true);
+    await assertDetailsActionsReachable(frame);
     await frame.locator('#close-details').click();
     panel = await openPicker(frame, 'workspace-directory');
     await panel.locator('.select-filter-input').fill('完整路径末尾');
@@ -568,6 +589,7 @@ class HarnessFixture extends DemoWatcher {
         '390px 触屏 tap 打开、选择与重开',
         '390px 搜索结果不被选择器遮挡',
         '1500x1000、900x720 与 390x844 布局及面板边界',
+        '详情面板动作区无需滚动、底部小字移除',
       ],
       pageErrors: errors,
       failedResponses,
