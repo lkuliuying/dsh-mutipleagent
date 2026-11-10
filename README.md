@@ -17,7 +17,7 @@ DeepSeek Harness 多 Agent 3D 协作办公室插件。安装后从 Harness 侧�
 
 以上为 `npm run screenshots` 生成的演示画面（演示数据，非真实会话）。
 
-当前版本为 `v0.2.0`，包名为 `dsh-mutipleagent`，仓库地址为 [lkuliuying/dsh-mutipleagent](https://github.com/lkuliuying/dsh-mutipleagent)。兼容 DeepSeek Harness `^0.2.2-rc.1`，需要 Node.js `^22.19.0 || >=24.0.0`。
+当前版本为 `v0.2.1`，包名为 `dsh-mutipleagent`，仓库地址为 [lkuliuying/dsh-mutipleagent](https://github.com/lkuliuying/dsh-mutipleagent)。兼容 DeepSeek Harness `^0.2.2-rc.1`，需要 Node.js `^22.19.0 || >=24.0.0`。
 
 各版本变化见 [CHANGELOG.md](CHANGELOG.md)，发布说明见 [GitHub Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases)。
 
@@ -43,11 +43,11 @@ DeepSeek Harness 多 Agent 3D 协作办公室插件。安装后从 Harness 侧�
 
 完全退出 Harness Desktop，在 PowerShell 运行以下命令，再重新启动 Harness：
 
-    dsh plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.2.0' --ignore-scripts
+    dsh plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.2.1' --ignore-scripts
 
 如果终端没有 `dsh` 命令，可使用 Desktop 随附的 CLI：
 
-    & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.2.0' --ignore-scripts
+    & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.2.1' --ignore-scripts
 
 上述命令既可首次安装，也可把原来固定在 `v0.1`～`v0.1.3` 的安装切换到 `v0.2.0`。安装源固定到具体标签，后续升级需改为目标版本的标签；仅重启不会切换版本。
 
@@ -62,11 +62,11 @@ DeepSeek Harness 多 Agent 3D 协作办公室插件。安装后从 Harness 侧�
 
 退出 Harness Desktop 后，安装本地包；路径按实际位置调整：
 
-    dsh plugin --profile desktop add "F:\Program\Multiple-Agent\.artifacts\dsh-mutipleagent-0.2.0.tgz"
+    dsh plugin --profile desktop add "F:\Program\Multiple-Agent\.artifacts\dsh-mutipleagent-0.2.1.tgz"
 
 如果终端没有 `dsh` 命令，可使用 Desktop 随附的 CLI，例如 PowerShell：
 
-    & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'F:\Program\Multiple-Agent\.artifacts\dsh-mutipleagent-0.2.0.tgz'
+    & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'F:\Program\Multiple-Agent\.artifacts\dsh-mutipleagent-0.2.1.tgz'
 
 重启 Harness，在侧栏选择「多 Agent 办公室」。不需要单独运行办公室服务，也不需要设置 API Key。插件从 `sessionQuery` 公开接口读取会话，不读取 `.codex`、凭据或私有推理。
 

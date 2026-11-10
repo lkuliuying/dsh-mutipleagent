@@ -40,12 +40,22 @@ if (!section.test(changelog)) {
 }
 
 const readmePath = path.join(root, 'README.md');
+const englishPath = path.join(root, 'README.en.md');
+const previous = pkg.version;
+const escapeRe = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// 只把「上一版」的版本号换成新版本：历史版本的标题与安装命令要保持原样。
+const rewriteReadme = text =>
+  text
+    .replace(new RegExp(`(当前版本[为是]?\\s*\`?)v${escapeRe(previous)}(\`?)`), `$1v${version}$2`)
+    .replace(new RegExp(`(Current version\\s*\`?)v${escapeRe(previous)}(\`?)`), `$1v${version}$2`)
+    .replace(new RegExp(`(##\\s+v)${escapeRe(previous)}(\\s*更新)`), `$1${version}$2`)
+    .replace(new RegExp(`(## What's new in v)${escapeRe(previous)}`), `$1${version}`)
+    .replace(/refs\/tags\/v\d+\.\d+\.\d+/g, `refs/tags/v${version}`)
+    .replace(new RegExp(`${escapeRe(pkg.name)}-\\d+\\.\\d+\\.\\d+\\.tgz`, 'g'), `${pkg.name}-${version}.tgz`);
 const readme = fs.readFileSync(readmePath, 'utf8');
-const updatedReadme = readme
-  .replace(/当前版本[为是]?\s*v\d+\.\d+\.\d+\S*/g, `当前版本为 v${version}`)
-  .replace(/(##\s+v)\d+\.\d+\.\d+\S*(\s*更新)/g, `$1${version}$2`)
-  .replace(/refs\/tags\/v\d+\.\d+\.\d+/g, `refs/tags/v${version}`)
-  .replace(/dsh-mutipleagent-\d+\.\d+\.\d+\.tgz/g, `${pkg.name}-${version}.tgz`);
+const english = fs.existsSync(englishPath) ? fs.readFileSync(englishPath, 'utf8') : '';
+const updatedReadme = rewriteReadme(readme);
+const updatedEnglish = rewriteReadme(english);
 if (!updatedReadme.includes(`v${version}`)) {
   console.error('README.md 里没有可替换的版本号，请先确认“当前版本为 vX”一行存在。');
   process.exit(1);
@@ -55,6 +65,7 @@ console.log(`发布 ${pkg.name}@${pkg.version} → ${version}`);
 if (!dryRun) {
   fs.writeFileSync(pkgPath, JSON.stringify({ ...pkg, version }, null, 2) + '\n');
   fs.writeFileSync(readmePath, updatedReadme);
+  if (updatedEnglish) fs.writeFileSync(englishPath, updatedEnglish);
 }
 for (const [label, command, commandArgs] of [
   ['lint', 'npm', ['run', 'lint']],
@@ -78,7 +89,7 @@ if (dryRun) {
   console.log(`dry-run：将提交 “chore(release): ${tag}”，打 tag ${tag}${push ? ' 并推送' : ''}`);
   process.exit(0);
 }
-run('git', ['add', 'package.json', 'package-lock.json', 'README.md', 'CHANGELOG.md', 'public'], { always: true });
+run('git', ['add', 'package.json', 'package-lock.json', 'README.md', 'README.en.md', 'CHANGELOG.md', 'public'], { always: true });
 run('git', ['commit', '-m', `chore(release): ${tag}`], { always: true });
 run('git', ['tag', '-a', tag, '-m', `${pkg.name} ${tag}`], { always: true });
 if (push) run('git', ['push', 'origin', 'HEAD', '--follow-tags'], { always: true });
