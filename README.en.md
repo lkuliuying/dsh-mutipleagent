@@ -17,7 +17,12 @@ A 3D office for DeepSeek Harness multi-agent work. Open it from the Harness side
 
 Generated from demo data with `npm run screenshots`. The interface ships in Chinese and English — switch with the 中 / EN control in the top bar. In live mode, task text, agent names and event previews stay exactly as they appear in your session logs, so they are not translated.
 
-Current version `v0.2.0`, package `dsh-mutipleagent`. Compatible with DeepSeek Harness `^0.2.2-rc.1` and Node.js `^22.19.0 || >=24.0.0`. See [CHANGELOG.md](CHANGELOG.md) for per-version notes and [Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases) for the published notes.
+Current version `v0.2.1`, package `dsh-mutipleagent`. Compatible with DeepSeek Harness `^0.2.2-rc.1` and Node.js `^22.19.0 || >=24.0.0`. See [CHANGELOG.md](CHANGELOG.md) for per-version notes and [Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases) for the published notes.
+
+## What's new in v0.2.1
+
+- Reads only expand what actually changed: `sessionQuery.observeSession()` leases hand back the header and the log cursor, and events materialize on demand. A session whose cursor did not move is neither cloned nor re-folded; `/api/health` reports the reuse count as `reused`.
+- Sessions without a live instance are gated by the persistence revision, so an unchanged log is not re-read; when observation is unavailable the reader falls back to the full `readSession()`.
 
 ## What's new in v0.2.0
 
@@ -31,11 +36,11 @@ Current version `v0.2.0`, package `dsh-mutipleagent`. Compatible with DeepSeek H
 
 Quit Harness Desktop completely, then:
 
-    dsh plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.2.0' --ignore-scripts
+    dsh plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.2.1' --ignore-scripts
 
 If `dsh` is not on `PATH`, use the bundled CLI:
 
-    & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.2.0' --ignore-scripts
+    & 'C:\ProgramSoftware\Deepseek\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'dsh-mutipleagent@https://codeload.github.com/lkuliuying/dsh-mutipleagent/legacy.tar.gz/refs/tags/v0.2.1' --ignore-scripts
 
 Restart Harness and pick **Multi-Agent Office** in the sidebar. No API key, no separate server, nothing else to configure.
 

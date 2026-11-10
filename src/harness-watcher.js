@@ -258,6 +258,8 @@ class HarnessWatcher extends EventEmitter {
     this.lastReadAt = 0;
     this.lastReadMs = 0;
     this.memberCount = 0;
+    // 本轮因日志游标未变化而复用折叠结果的成员数（/api/health 可观测）。
+    this.reused = 0;
   }
 
   async start() {
@@ -295,6 +297,7 @@ class HarnessWatcher extends EventEmitter {
       subscriptions: this.subscriptions.size,
       lastReadAt: this.lastReadAt || null,
       lastReadMs: this.lastReadMs,
+      reused: this.reused,
       revision: this.revision,
       interval: this.interval,
       polling: this.wanted(),
@@ -362,6 +365,38 @@ class HarnessWatcher extends EventEmitter {
     return this.pending;
   }
 
+  /**
+   * 取一份观察租约。租约只读取 header 与日志游标，事件按需物化，因此未变化的会话
+   * 不必克隆整份日志。宿主没有 observeSession 或它抛错时返回 null，由 readSession 兜底。
+   */
+  async tryObserve(id) {
+    if (typeof this.query.observeSession !== 'function') return null;
+    try {
+      const lease = await this.query.observeSession(id, { projectionMode: 'none' });
+      return lease && lease.header ? lease : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 读取一位成员的变化指纹与日志来源。租约路径的指纹由 header、继承事件数与日志游标
+   * 组成（冷会话再看持久化修订号），只有指纹变化才展开整份事件并重新折叠。
+   */
+  async loadMember(id) {
+    const lease = await this.tryObserve(id);
+    if (lease) {
+      const stamp = 'v2|' + [lease.header.id, lease.inheritedEventCount ?? 0, lease.cursor ?? -1, lease.revision ?? ''].join(':');
+      return {
+        stamp,
+        log: () => ({ session: lease.header, inheritedEventCount: lease.inheritedEventCount ?? 0, events: lease.events }),
+        done: () => lease[Symbol.dispose]?.(),
+      };
+    }
+    const log = await this.query.readSession(id);
+    return { stamp: 'v1|' + logStamp(log), log: () => log, done: () => {} };
+  }
+
   async read(epoch) {
     const startedAt = Date.now();
     const listed = await this.query.listSessions();
@@ -382,23 +417,29 @@ class HarnessWatcher extends EventEmitter {
       if (team.length > TEAM_LIMIT) warnings.push('团队超过 128 位成员，仅同步前 128 位');
     }
     const cache = new Map();
+    let reused = 0;
     // 小批次限制同时读取的完整会话数量，单个成员不可读不阻断其他成员。
     for (let offset = 0; offset < limited.length; offset += 4) {
       const batch = limited.slice(offset, offset + 4);
-      const results = await Promise.allSettled(batch.map(record => this.query.readSession(record.header.id)));
-      if (this.stopped || epoch !== this.epoch) return;
+      const results = await Promise.allSettled(batch.map(record => this.loadMember(record.header.id)));
+      if (this.stopped || epoch !== this.epoch) {
+        for (const result of results) if (result.status === 'fulfilled') result.value.done();
+        return;
+      }
       for (let index = 0; index < batch.length; index++) {
         const record = batch[index],
           result = results[index];
         try {
           if (result.status === 'rejected') throw result.reason;
-          const stamp = corpus + '#' + logStamp(result.value);
+          const member = result.value;
+          const stamp = corpus + '#' + member.stamp;
           const previous = this.cache.get(record.header.id);
           if (previous?.stamp === stamp) {
             cache.set(record.header.id, previous);
+            reused++;
             continue;
           }
-          cache.set(record.header.id, { ...fold(result.value, records), stamp });
+          cache.set(record.header.id, { ...fold(member.log(), records), stamp });
         } catch {
           // 读取失败时沿用上一轮内容，但不携带指纹，恢复后一定重算。
           const previous = this.cache.get(record.header.id);
@@ -409,6 +450,8 @@ class HarnessWatcher extends EventEmitter {
               : { agent: { ...newAgent(record.header), loading: false }, events: [], refs: new Map() },
           );
           warnings.push('有成员会话暂时无法读取，其他成员继续同步');
+        } finally {
+          if (result.status === 'fulfilled') result.value.done();
         }
       }
     }
@@ -425,6 +468,7 @@ class HarnessWatcher extends EventEmitter {
     this.selectedId = selectedId;
     this.warnings = [...new Set(warnings)];
     this.memberCount = limited.length;
+    this.reused = reused;
     this.lastReadAt = Date.now();
     this.lastReadMs = this.lastReadAt - startedAt;
     this.publish();

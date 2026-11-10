@@ -111,6 +111,7 @@ function createOfficeServer({ watcher = new CodexWatcher(), basePath = '', defau
         revision: status.revision ?? snapshot.revision ?? 0,
         lastReadAt: status.lastReadAt ?? null,
         lastReadMs: status.lastReadMs ?? 0,
+        reused: status.reused ?? 0,
         interval: status.interval ?? null,
         polling: status.polling ?? null,
         warnings: snapshot.warnings?.length ?? 0,

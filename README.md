@@ -21,6 +21,11 @@ DeepSeek Harness 多 Agent 3D 协作办公室插件。安装后从 Harness 侧�
 
 各版本变化见 [CHANGELOG.md](CHANGELOG.md)，发布说明见 [GitHub Releases](https://github.com/lkuliuying/dsh-mutipleagent/releases)。
 
+## v0.2.1 更新
+
+- 读取只展开真正变化的会话：`sessionQuery.observeSession()` 的观察租约只取 header 与日志游标，事件按需物化；游标未变的会话不再克隆整份日志、也不再重新折叠，复用数见 `/api/health` 的 `reused`。
+- 未运行的会话按持久化修订号判断，日志没变就直接复用，不重读 zstd 日志；观察不可用时自动回退整份读取。
+
 ## v0.2.0 更新
 
 - 中英双语界面，默认跟随系统语言，顶栏可切换。

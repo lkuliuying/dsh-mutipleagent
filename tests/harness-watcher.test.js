@@ -8,7 +8,11 @@ function fixture(t) {
   const sessions = new Map(),
     reads = [],
     eventReads = [],
-    failures = new Set();
+    failures = new Set(),
+    observes = [],
+    materialized = [],
+    disposed = [],
+    observeFailures = new Set();
   const query = {
     async listSessions() {
       return [...sessions.values()].map(log => ({ header: log.session, live: true, persisted: true })).reverse();
@@ -23,6 +27,27 @@ function fixture(t) {
       return { target: structuredClone(sessions.get(request.sessionId)?.events.find(event => event.seq === request.seq)) };
     },
   };
+  // 增量路径按需开启：租约只暴露 header 与游标，事件在被读取时才产生副本。
+  function enableObserve() {
+    query.observeSession = async id => {
+      observes.push(id);
+      if (observeFailures.has(id)) throw new Error('private observe failure');
+      const log = sessions.get(id);
+      return {
+        source: 'live',
+        header: log.session,
+        inheritedEventCount: log.inheritedEventCount,
+        cursor: log.events.at(-1)?.seq ?? -1,
+        get events() {
+          materialized.push(id);
+          return log.events;
+        },
+        [Symbol.dispose]() {
+          disposed.push(id);
+        },
+      };
+    };
+  }
   const watcher = new HarnessWatcher({ query, interval: 10 });
   t.after(() => watcher.stop());
   function create(id, parentId, origin = 'subagent') {
@@ -49,7 +74,25 @@ function fixture(t) {
     });
   const start = id => add(id, 'turn/start', { turn: 1 });
   const end = (id, kind = 'completed') => add(id, 'turn/end', { turn: 1, reason: { kind } });
-  return { query, watcher, sessions, reads, eventReads, failures, create, add, user, assistant, start, end };
+  return {
+    query,
+    watcher,
+    sessions,
+    reads,
+    eventReads,
+    failures,
+    observes,
+    materialized,
+    disposed,
+    observeFailures,
+    enableObserve,
+    create,
+    add,
+    user,
+    assistant,
+    start,
+    end,
+  };
 }
 
 test('仅读取选中团队，普通 fork 独立，真正子 Agent 支持嵌套', async t => {
@@ -549,4 +592,44 @@ test('停止后进行中的标题读取不再回写根会话列表', async t => 
   await pending;
   assert.deepEqual(f.watcher.snapshot().roots, before.roots);
   assert.equal(f.watcher.snapshot().revision, before.revision);
+});
+
+test('日志游标未变化时复用折叠结果，不物化事件副本', async t => {
+  const f = fixture(t);
+  f.create('root');
+  f.create('child', 'root');
+  f.user('root', '检查接口');
+  f.enableObserve();
+  await f.watcher.refresh();
+  assert.deepEqual(new Set(f.observes), new Set(['root', 'child']));
+  assert.deepEqual(new Set(f.materialized), new Set(['root', 'child']));
+  assert.equal(f.reads.length, 0, '有 observeSession 时不再走全量 readSession');
+  const first = f.watcher.snapshot();
+  f.materialized.length = 0;
+  await f.watcher.refresh();
+  assert.deepEqual(f.materialized, [], '游标未变的会话不展开事件');
+  assert.equal(f.watcher.metrics().reused, 2);
+  assert.deepEqual(f.watcher.snapshot().agents, first.agents);
+  f.materialized.length = 0;
+  f.assistant('child', '新的进展');
+  await f.watcher.refresh();
+  assert.deepEqual(f.materialized, ['child'], '只有变化的会话重新折叠');
+  assert.equal(f.watcher.metrics().reused, 1);
+  assert.ok(f.watcher.snapshot().events.some(event => event.sessionId === 'child'));
+});
+
+test('观察租约每次都释放，观察失败时回退整份读取', async t => {
+  const f = fixture(t);
+  f.create('root');
+  f.create('child', 'root');
+  f.user('root', '检查接口');
+  f.enableObserve();
+  await f.watcher.refresh();
+  assert.equal(f.disposed.length, f.observes.length, '每个租约都释放');
+  f.observeFailures.add('root');
+  f.materialized.length = 0;
+  await f.watcher.refresh();
+  assert.ok(f.reads.includes('root'), '观察失败的会话回退 readSession');
+  assert.deepEqual(f.materialized, [], '回退路径不经过租约');
+  assert.equal(f.watcher.snapshot().agents.length, 2);
 });
